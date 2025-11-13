@@ -4,8 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/JustScorpio/loyalty_system/internal/customcontext"
-	"github.com/JustScorpio/loyalty_system/internal/models"
+	"github.com/JustScorpio/GophKeeper/backend/internal/models"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -17,10 +16,9 @@ func NewPgUsersRepo(db *pgx.Conn) (*PgUsersRepo, error) {
 	// Создание таблицы users, если её нет
 	_, err := db.Exec(context.Background(), `
 		CREATE TABLE IF NOT EXISTS users (
-			login TEXT NOT NULL PRIMARY KEY,
-			password TEXT,
-			currentpoints REAL,
-			withdrawnpoints REAL
+			id SERIAL PRIMARY KEY
+			login TEXT NOT NULL
+			password TEXT
 		)
 	`)
 	if err != nil {
@@ -31,7 +29,7 @@ func NewPgUsersRepo(db *pgx.Conn) (*PgUsersRepo, error) {
 }
 
 func (r *PgUsersRepo) GetAll(ctx context.Context) ([]models.User, error) {
-	rows, err := r.db.Query(ctx, "SELECT login, password, currentpoints, withdrawnpoints FROM users")
+	rows, err := r.db.Query(ctx, "SELECT id, login, password FROM users")
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +43,7 @@ func (r *PgUsersRepo) GetAll(ctx context.Context) ([]models.User, error) {
 	var users []models.User
 	for rows.Next() {
 		var user models.User
-		err := rows.Scan(&user.Login, &user.Password, &user.CurrentPoints, &user.WithdrawnPoints)
+		err := rows.Scan(&user.ID, &user.Login, &user.Password)
 		if err != nil {
 			return nil, err
 		}
@@ -55,9 +53,9 @@ func (r *PgUsersRepo) GetAll(ctx context.Context) ([]models.User, error) {
 	return users, nil
 }
 
-func (r *PgUsersRepo) Get(ctx context.Context, login string) (*models.User, error) {
+func (r *PgUsersRepo) Get(ctx context.Context, id string) (*models.User, error) {
 	var user models.User
-	err := r.db.QueryRow(ctx, "SELECT login, password, currentpoints, withdrawnpoints FROM users WHERE login = $1", login).Scan(&user.Login, &user.Password, &user.CurrentPoints, &user.WithdrawnPoints)
+	err := r.db.QueryRow(ctx, "SELECT id, login, password FROM users WHERE id = $1", id).Scan(&user.ID, &user.Login, &user.Password)
 
 	if err != nil {
 		return nil, err
@@ -66,7 +64,7 @@ func (r *PgUsersRepo) Get(ctx context.Context, login string) (*models.User, erro
 }
 
 func (r *PgUsersRepo) Create(ctx context.Context, user *models.User) error {
-	err := r.execQuery(ctx, "INSERT INTO users (login, password, currentpoints, withdrawnpoints) VALUES ($1, $2, $3, $4)", &user.Login, &user.Password, &user.CurrentPoints, &user.WithdrawnPoints)
+	_, err := r.db.Exec(ctx, "INSERT INTO users (login, password,) VALUES ($1, $2)", &user.Login, &user.Password)
 	if err != nil {
 		return err
 	}
@@ -74,26 +72,11 @@ func (r *PgUsersRepo) Create(ctx context.Context, user *models.User) error {
 }
 
 func (r *PgUsersRepo) Update(ctx context.Context, user *models.User) error {
-	err := r.execQuery(ctx, "UPDATE users SET password = $2, currentpoints = $3, withdrawnpoints = $4 WHERE login = $1", user.Login, user.Password, user.CurrentPoints, user.WithdrawnPoints)
+	_, err := r.db.Exec(ctx, "UPDATE users SET login = $2, password = $3 WHERE id = $1", user.ID, user.Login, user.Password)
 	return err
 }
 
-func (r *PgUsersRepo) Delete(ctx context.Context, login string) error {
-	err := r.execQuery(ctx, "DELETE FROM users WHERE login = $1", login)
-	return err
-}
-
-func (r *PgUsersRepo) PingDB() bool {
-	err := r.db.Ping(context.Background())
-	return err == nil
-}
-
-// execQuery выполняет запрос, автоматически используя транзакцию из контекста если она есть
-func (r *PgUsersRepo) execQuery(ctx context.Context, query string, args ...interface{}) error {
-	if tx, ok := customcontext.GetTx(ctx); ok {
-		_, err := tx.Exec(ctx, query, args...)
-		return err
-	}
-	_, err := r.db.Exec(ctx, query, args...)
+func (r *PgUsersRepo) Delete(ctx context.Context, id string) error {
+	_, err := r.db.Exec(ctx, "DELETE FROM users WHERE id = $1", id)
 	return err
 }
