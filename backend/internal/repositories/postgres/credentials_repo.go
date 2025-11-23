@@ -1,0 +1,111 @@
+// Репозиторий postgres
+package postgres
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/JustScorpio/GophKeeper/backend/internal/customcontext"
+	"github.com/JustScorpio/GophKeeper/backend/internal/models/dtos"
+	"github.com/JustScorpio/GophKeeper/backend/internal/models/entities"
+	"github.com/jackc/pgx/v5"
+)
+
+// PgCredentialsRepo - репозиторий с учётными данными
+type PgCredentialsRepo struct {
+	db *pgx.Conn
+}
+
+// NewPgCredentialsRepo - инициализация репозитория
+func NewPgCredentialsRepo(db *pgx.Conn) (*PgCredentialsRepo, error) {
+	// Создание таблицы Credentials, если её нет
+	_, err := db.Exec(context.Background(), `
+		CREATE TABLE IF NOT EXISTS Credentials (
+			id SERIAL PRIMARY KEY,
+			login TEXT NOT NULL,
+			password TEXT NOT NULL,
+			metadata TEXT,
+			ownerid TEXT NOT NULL
+		)
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tables: %w", err)
+	}
+
+	return &PgCredentialsRepo{db: db}, nil
+}
+
+// GetAll - получить все сущности (при наличии прав у текущего пользователя)
+func (r *PgCredentialsRepo) GetAll(ctx context.Context) ([]entities.Credentials, error) {
+	userID := customcontext.GetUserID((ctx))
+
+	rows, err := r.db.Query(ctx, "SELECT id, login, password, metadata, ownerid FROM Credentials WHERE ownerid = $1", userID)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	var Credentials []entities.Credentials
+	for rows.Next() {
+		var credentials entities.Credentials
+		err := rows.Scan(&credentials.ID, &credentials.Login, &credentials.Password, &credentials.Metadata, &credentials.OwnerID)
+		if err != nil {
+			return nil, err
+		}
+		Credentials = append(Credentials, credentials)
+	}
+
+	return Credentials, nil
+}
+
+// Get - получить сущность по ИД (при наличии прав у текущего пользователя)
+func (r *PgCredentialsRepo) Get(ctx context.Context, id string) (*entities.Credentials, error) {
+	userID := customcontext.GetUserID((ctx))
+
+	var credentials entities.Credentials
+	err := r.db.QueryRow(ctx, "SELECT id, login, password, metadata, ownerid FROM Credentials WHERE id = $1 AND ownerID = $2", id, userID).Scan(&credentials.ID, &credentials.Login, &credentials.Password, &credentials.Metadata, &credentials.OwnerID)
+
+	if err != nil {
+		return nil, err
+	}
+	return &credentials, nil
+}
+
+// Create - создать сущность
+func (r *PgCredentialsRepo) Create(ctx context.Context, credentials *dtos.NewCredentials) (*entities.Credentials, error) {
+	userID := customcontext.GetUserID(ctx)
+
+	var entity entities.Credentials
+	err := r.db.QueryRow(ctx, "INSERT INTO Credentials (login, password, metadata, ownerid) VALUES ($1, $2, $3, $4) RETURNING id, login, password, metadata, ownerid", credentials.Login, credentials.Password, credentials.Metadata, userID).Scan(&entity.ID, &entity.Login, &entity.Password, &entity.Metadata, &entity.OwnerID)
+
+	if err != nil {
+		return nil, err
+	}
+	return &entity, nil
+}
+
+// Update - изменить сущность
+func (r *PgCredentialsRepo) Update(ctx context.Context, credentials *entities.Credentials) (*entities.Credentials, error) {
+	userID := customcontext.GetUserID(ctx)
+
+	var updatedEntity entities.Credentials
+	err := r.db.QueryRow(ctx, "UPDATE Credentials SET login = $2, password = $3, metadata = $4, ownerid = $5 WHERE id = $1 AND ownerid = $6 RETURNING id, login, password, metadata, ownerid", credentials.ID, credentials.Login, credentials.Password, credentials.Metadata, credentials.OwnerID, userID).Scan(&updatedEntity.ID, &updatedEntity.Login, &updatedEntity.Password, &updatedEntity.Metadata, &updatedEntity.OwnerID)
+
+	if err != nil {
+		return nil, err
+	}
+	return &updatedEntity, nil
+}
+
+// Delete - удалить сущность
+func (r *PgCredentialsRepo) Delete(ctx context.Context, id string) error {
+	userID := customcontext.GetUserID((ctx))
+
+	_, err := r.db.Exec(ctx, "DELETE FROM Credentials WHERE id = $1 AND ownerid = $2", id, userID)
+	return err
+}

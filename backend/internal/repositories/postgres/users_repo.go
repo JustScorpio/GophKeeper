@@ -1,23 +1,26 @@
+// Репозиторий postgres
 package postgres
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/JustScorpio/GophKeeper/backend/internal/models"
+	"github.com/JustScorpio/GophKeeper/backend/internal/models/dtos"
+	"github.com/JustScorpio/GophKeeper/backend/internal/models/entities"
 	"github.com/jackc/pgx/v5"
 )
 
+// PgUsersRepo - репозиторий пользователями
 type PgUsersRepo struct {
 	db *pgx.Conn
 }
 
+// NewPgUsersRepo - инициализация репозитория
 func NewPgUsersRepo(db *pgx.Conn) (*PgUsersRepo, error) {
 	// Создание таблицы users, если её нет
 	_, err := db.Exec(context.Background(), `
 		CREATE TABLE IF NOT EXISTS users (
-			id SERIAL PRIMARY KEY
-			login TEXT NOT NULL
+			login TEXT NOT NULL PRIMARY KEY,
 			password TEXT
 		)
 	`)
@@ -28,8 +31,9 @@ func NewPgUsersRepo(db *pgx.Conn) (*PgUsersRepo, error) {
 	return &PgUsersRepo{db: db}, nil
 }
 
-func (r *PgUsersRepo) GetAll(ctx context.Context) ([]models.User, error) {
-	rows, err := r.db.Query(ctx, "SELECT id, login, password FROM users")
+// GetAll - получить все сущности
+func (r *PgUsersRepo) GetAll(ctx context.Context) ([]entities.User, error) {
+	rows, err := r.db.Query(ctx, "SELECT login, password FROM users")
 	if err != nil {
 		return nil, err
 	}
@@ -40,10 +44,10 @@ func (r *PgUsersRepo) GetAll(ctx context.Context) ([]models.User, error) {
 		return nil, err
 	}
 
-	var users []models.User
+	var users []entities.User
 	for rows.Next() {
-		var user models.User
-		err := rows.Scan(&user.ID, &user.Login, &user.Password)
+		var user entities.User
+		err := rows.Scan(&user.Login, &user.Password)
 		if err != nil {
 			return nil, err
 		}
@@ -53,9 +57,10 @@ func (r *PgUsersRepo) GetAll(ctx context.Context) ([]models.User, error) {
 	return users, nil
 }
 
-func (r *PgUsersRepo) Get(ctx context.Context, id string) (*models.User, error) {
-	var user models.User
-	err := r.db.QueryRow(ctx, "SELECT id, login, password FROM users WHERE id = $1", id).Scan(&user.ID, &user.Login, &user.Password)
+// Get - получить сущность по ИД
+func (r *PgUsersRepo) Get(ctx context.Context, login string) (*entities.User, error) {
+	var user entities.User
+	err := r.db.QueryRow(ctx, "SELECT login, password FROM users WHERE login = $1", login).Scan(&user.Login, &user.Password)
 
 	if err != nil {
 		return nil, err
@@ -63,20 +68,30 @@ func (r *PgUsersRepo) Get(ctx context.Context, id string) (*models.User, error) 
 	return &user, nil
 }
 
-func (r *PgUsersRepo) Create(ctx context.Context, user *models.User) error {
-	_, err := r.db.Exec(ctx, "INSERT INTO users (login, password,) VALUES ($1, $2)", &user.Login, &user.Password)
+// Create - создать сущность
+func (r *PgUsersRepo) Create(ctx context.Context, user *dtos.NewUser) (*entities.User, error) {
+	var entity entities.User
+	err := r.db.QueryRow(ctx, "INSERT INTO users (login, password) VALUES ($1, $2) RETURNING login, password", user.Login, user.Password).Scan(&entity.Login, &entity.Password)
+
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	return &entity, nil
 }
 
-func (r *PgUsersRepo) Update(ctx context.Context, user *models.User) error {
-	_, err := r.db.Exec(ctx, "UPDATE users SET login = $2, password = $3 WHERE id = $1", user.ID, user.Login, user.Password)
-	return err
+// Update - изменить сущность
+func (r *PgUsersRepo) Update(ctx context.Context, user *entities.User) (*entities.User, error) {
+	var updatedEntity entities.User
+	err := r.db.QueryRow(ctx, "UPDATE users SET password = $2 WHERE login = $1 RETURNING login, password", user.Login, user.Password).Scan(&updatedEntity.Login, &updatedEntity.Password)
+
+	if err != nil {
+		return nil, err
+	}
+	return &updatedEntity, nil
 }
 
-func (r *PgUsersRepo) Delete(ctx context.Context, id string) error {
-	_, err := r.db.Exec(ctx, "DELETE FROM users WHERE id = $1", id)
+// Delete - удалить сущность
+func (r *PgUsersRepo) Delete(ctx context.Context, login string) error {
+	_, err := r.db.Exec(ctx, "DELETE FROM users WHERE login = $1", login)
 	return err
 }

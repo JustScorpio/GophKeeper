@@ -1,9 +1,8 @@
-package models
+package entities
 
-// CardInformation - bank card information to store
+// CardInformation - данные банковской карты
 type CardInformation struct {
-	ID             string `json:"id"`
-	Metadata       string `json:"metadata"`
+	SecureEntity
 	Number         string `json:"number"`
 	CardHolder     string `json:"card_holder"`
 	ExpirationDate string `json:"expiration_date"`
