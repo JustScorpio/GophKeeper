@@ -17,7 +17,4 @@ type IRepository[Entity any, DTO any] interface {
 	Update(ctx context.Context, entity *Entity) (*Entity, error)
 	// Delete - удалить сущность
 	Delete(ctx context.Context, id string) error
-
-	// CloseConnection - закрыть соединение с БД
-	CloseConnection()
 }

@@ -1,0 +1,5 @@
+{
+  "server_address": "localhost:8080",
+  "database_dsn": "host=127.0.0.1 user=postgres password=1Qwerty dbname=urlshortenerdb port=5432 sslmode=disable",
+  "enable_https": false
+}

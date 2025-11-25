@@ -2,12 +2,12 @@
 package auth
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
 	"github.com/JustScorpio/GophKeeper/backend/internal/customcontext"
 	"github.com/golang-jwt/jwt/v4"
-	"github.com/google/uuid"
 )
 
 const (
@@ -22,86 +22,85 @@ const (
 // Claims — структура утверждений, которая включает стандартные утверждения и одно пользовательское UserID
 type Claims struct {
 	jwt.RegisteredClaims
-	UserID string
+	Login string `json:"login"`
 }
 
-// newJWTString - создаёт токен и возвращает его в виде строки.
-func newJWTString(userID string) (string, error) {
-	// создаём новый токен с алгоритмом подписи HS256 и утверждениями — Claims
+// newJWTString - создаёт токен с логином пользователя
+func newJWTString(login string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
-			// Срок окончания времени жизни токена
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenLifeTime)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
 		},
-		// собственное утверждение
-		UserID: userID,
+		Login: login, // Сохраняем логин в токене
 	})
 
-	// создаём строку токена
 	tokenString, err := token.SignedString([]byte(secretKey))
 	if err != nil {
 		return "", err
 	}
 
-	// возвращаем строку токена
 	return tokenString, nil
 }
 
-// AuthMiddleware - middleware для добавления и чтения кук
-//
-// NOT-Deprecated (иначе ругается statictest): в демонтрационном варианте пользователи в БД не хранятся. Доступ к созданным урлам теряется по истечении срока токена
+// SetJWTCookie - устанавливает JWT куку
+func SetJWTCookie(w http.ResponseWriter, userID string) error {
+	newToken, err := newJWTString(userID)
+	if err != nil {
+		return err
+	}
+
+	newCookie := &http.Cookie{
+		Name:     jwtCookieName,
+		Value:    newToken,
+		Path:     "/",
+		Expires:  time.Now().Add(tokenLifeTime),
+		HttpOnly: true,
+	}
+
+	http.SetCookie(w, newCookie)
+	return nil
+}
+
+// GetLoginFromToken - извлекает логин из JWT токена
+func GetLoginFromToken(tokenString string) (string, error) {
+	claims := &Claims{}
+	token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
+		return []byte(secretKey), nil
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	if !token.Valid {
+		return "", errors.New("invalid token")
+	}
+
+	return claims.Login, nil
+}
+
+// AuthMiddleware - middleware для проверки аутентификации (добавляет в контекст login пользователя)
 func AuthMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			var login string
 
-			var userID string
-
-			needCreateCookie := false
 			cookie, err := r.Cookie(jwtCookieName)
-			if err != nil {
-				//Нужно создать новую
-				needCreateCookie = true
-			} else {
-				// создаём экземпляр структуры с утверждениями
+			if err == nil {
 				claims := &Claims{}
-				// парсим из строки токена tokenString в структуру claims
 				token, err := jwt.ParseWithClaims(cookie.Value, claims, func(t *jwt.Token) (interface{}, error) {
 					return []byte(secretKey), nil
 				})
 
-				if err != nil || !token.Valid {
-					needCreateCookie = true
-				} else {
-					userID = claims.UserID
+				if err == nil && token.Valid {
+					login = claims.Login // Теперь получаем логин из токена
 				}
 			}
 
-			//Если некорректный токен - выдаём новый
-			if needCreateCookie {
-				userID = uuid.NewString()
-
-				newToken, err := newJWTString(userID)
-				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					return
-				}
-
-				// Создаем новую куку
-				newCookie := &http.Cookie{
-					Name:     jwtCookieName,
-					Value:    newToken,
-					Path:     "/",
-					Expires:  time.Now().Add(tokenLifeTime), //Срок жизни куки - такой же как и у токена
-					HttpOnly: true,
-				}
-
-				http.SetCookie(w, newCookie)
-			}
-
-			// Добавляем UUID в контекст запроса
-			ctx := customcontext.WithUserID(r.Context(), userID)
+			// Добавляем логин в контекст (может быть пустым если нет валидного токена)
+			ctx := customcontext.WithUserID(r.Context(), login) // Используем логин как UserID
 			next.ServeHTTP(w, r.WithContext(ctx))
-
 		})
 	}
 }

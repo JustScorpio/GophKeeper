@@ -3,7 +3,6 @@ module github.com/JustScorpio/GophKeeper/backend
 go 1.24.4
 
 require (
-	github.com/JustScorpio/urlshortener v0.0.0-20251102143217-323dfdc453b2
 	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.7.6
@@ -13,7 +12,9 @@ require (
 require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/stretchr/testify v1.8.4 // indirect
 	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/crypto v0.38.0 // indirect
+	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/text v0.25.0 // indirect
 )

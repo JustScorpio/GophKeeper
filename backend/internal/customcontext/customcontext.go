@@ -16,7 +16,7 @@ func WithUserID(ctx context.Context, userID string) context.Context {
 	return context.WithValue(ctx, userIDKey, userID)
 }
 
-// WithUserID - извлечь из контекста информацию о пользователе
+// GetUserID - извлечь из контекста информацию о пользователе
 func GetUserID(ctx context.Context) string {
 	userID := ctx.Value(userIDKey)
 	if userID == nil {
