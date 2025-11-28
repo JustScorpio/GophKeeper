@@ -12,8 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"google.golang.org/grpc"
-
 	"github.com/JustScorpio/GophKeeper/backend/internal/handlers"
 	"github.com/JustScorpio/GophKeeper/backend/internal/middleware/auth"
 	"github.com/JustScorpio/GophKeeper/backend/internal/middleware/gzipencoder"
@@ -110,7 +108,7 @@ func run() error {
 	}
 
 	// Инициализация обработчиков
-	shURLHandler := handlers.NewShURLHandler(storageService, enableHTTPS)
+	handler := handlers.NewGophkeeperHandler(storageService)
 
 	// Инициализация логгера
 	zapLogger, err := logger.NewLogger("Info", true)
@@ -130,19 +128,47 @@ func run() error {
 
 	// Запуск сервера
 	r := chi.NewRouter()
-	r.Use(auth.AuthMiddleware())
+
+	//Базовые middleware
 	r.Use(logger.LoggingMiddleware(zapLogger))
 	r.Use(gzipencoder.GZIPEncodingMiddleware())
-	r.Get("/ping", pingFunc)
-	r.Get("/api/user/urls", shURLHandler.GetShURLsByUserID)
-	r.Delete("/api/user/urls", shURLHandler.DeleteMany)
-	r.Get("/{token}", shURLHandler.GetFullURL)
-	r.Post("/api/shorten", shURLHandler.ShortenURL)
-	r.Post("/api/shorten/batch", shURLHandler.ShortenURLsBatch)
-	r.Post("/", shURLHandler.ShortenURL)
-	r.With(cidrWhiteList.CIDRWhitelistMiddleware()).Get("/api/internal/stats", shURLHandler.GetStats)
+
+	//Публичные маршруты
+	r.Group(func(r chi.Router) {
+		r.Post("/api/user/register", handler.Register)
+		r.Post("/api/user/login", handler.Login)
+	})
+
+	//Защищённые маршруты с auth middleware
+	r.Group(func(r chi.Router) {
+		r.Use(auth.AuthMiddleware())
+		r.Post("/api/user/binaries", handler.CreateBinary)
+		r.Get("/api/user/binaries/{id}", handler.GetBinary)
+		r.Get("/api/user/binaries", handler.GetAllBinaries)
+		r.Put("/api/user/binaries", handler.UpdateBinary)
+		r.Delete("/api/user/binaries", handler.DeleteBinary)
+
+		r.Post("/api/user/card", handler.CreateCard)
+		r.Get("/api/user/cards/{id}", handler.GetCard)
+		r.Get("/api/user/cards", handler.GetAllCards)
+		r.Put("/api/user/cards", handler.UpdateCard)
+		r.Delete("/api/user/cards", handler.DeleteCard)
+
+		r.Post("/api/user/credentials", handler.CreateCredentials)
+		r.Get("/api/user/credentials/{id}", handler.GetCredentials)
+		r.Get("/api/user/credentials", handler.GetAllCredentials)
+		r.Put("/api/user/credentials", handler.UpdateCredentials)
+		r.Delete("/api/user/credentials", handler.DeleteCredentials)
+
+		r.Post("/api/user/texts", handler.CreateText)
+		r.Get("/api/user/texts/{id}", handler.GetText)
+		r.Get("/api/user/texts", handler.GetAllTexts)
+		r.Put("/api/user/texts", handler.UpdateText)
+		r.Delete("/api/user/texts", handler.DeleteText)
+	})
 
 	server := createHTTPServer(routerAddr, r, tlsConfig)
+	fmt.Println("Running server on", routerAddr)
 
 	// Запуск сервера в горутине
 	serverErr := make(chan error, 1)
@@ -175,43 +201,34 @@ func createHTTPServer(addr string, handler http.Handler, tlsConfig *tls.Config) 
 	return server
 }
 
-// runServer - запускает сервер в горутине и возвращает канал с ошибкой
+// runHTTPServer - запускает сервер в горутине и возвращает канал с ошибкой
 func runHTTPServer(server *http.Server) error {
-	fmt.Printf("Running server on %s\n", server.Addr)
+	if server.TLSConfig != nil {
+		return server.ListenAndServeTLS("", "")
+	}
 	return server.ListenAndServe()
 }
 
 // gracefulShutdown - graceful shutdown приложения
-func gracefulShutdown(service *services.StorageService, servers ...interface{}) error {
+func gracefulShutdown(service *services.StorageService, server *http.Server) error {
 	fmt.Println("Starting graceful shutdown...")
 
+	// Останавливаем прием новых соединений
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	// Останавливаем серверы
-	for i, server := range servers {
-		switch s := server.(type) {
-		case *http.Server:
-			if s != nil {
-				if err := s.Shutdown(ctx); err != nil {
-					fmt.Printf("HTTP server %d shutdown error: %v\n", i, err)
-				} else {
-					fmt.Printf("HTTP server %d stopped\n", i)
-				}
-			}
-		case *grpc.Server:
-			if s != nil {
-				fmt.Printf("Stopping gRPC server...\n")
-				s.GracefulStop()
-				fmt.Printf("gRPC server stopped\n")
-			}
-		}
+	// Останавливаем сервис (прекращаем обработку задач)
+	if service != nil {
+		service.Shutdown()
+		fmt.Println("Service shutdown completed")
 	}
 
-	// Останавливаем сервис
-	service.Shutdown()
-	fmt.Println("Service shutdown completed")
+	// Останавливаем HTTP сервер
+	if err := server.Shutdown(ctx); err != nil {
+		fmt.Printf("HTTP server shutdown error: %v\n", err)
+		return err
+	}
 
-	fmt.Println("Graceful shutdown finished")
+	fmt.Println("HTTP server shutdown completed")
 	return nil
 }

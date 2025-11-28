@@ -80,26 +80,36 @@ func GetLoginFromToken(tokenString string) (string, error) {
 	return claims.Login, nil
 }
 
-// AuthMiddleware - middleware для проверки аутентификации (добавляет в контекст login пользователя)
+// AuthMiddleware - middleware для проверки аутентификации
 func AuthMiddleware() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			var login string
 
 			cookie, err := r.Cookie(jwtCookieName)
-			if err == nil {
-				claims := &Claims{}
-				token, err := jwt.ParseWithClaims(cookie.Value, claims, func(t *jwt.Token) (interface{}, error) {
-					return []byte(secretKey), nil
-				})
-
-				if err == nil && token.Valid {
-					login = claims.Login // Теперь получаем логин из токена
-				}
+			if err != nil {
+				http.Error(w, "Authentication required", http.StatusUnauthorized)
+				return
 			}
 
-			// Добавляем логин в контекст (может быть пустым если нет валидного токена)
-			ctx := customcontext.WithUserID(r.Context(), login) // Используем логин как UserID
+			claims := &Claims{}
+			token, err := jwt.ParseWithClaims(cookie.Value, claims, func(t *jwt.Token) (interface{}, error) {
+				return []byte(secretKey), nil
+			})
+
+			if err != nil || !token.Valid {
+				http.Error(w, "Invalid or expired token", http.StatusUnauthorized)
+				return
+			}
+
+			login = claims.Login
+			if login == "" {
+				http.Error(w, "Invalid token", http.StatusUnauthorized)
+				return
+			}
+
+			// Добавляем логин в контекст
+			ctx := customcontext.WithUserID(r.Context(), login)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

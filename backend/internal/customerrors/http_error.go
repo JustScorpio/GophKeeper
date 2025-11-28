@@ -2,6 +2,7 @@
 package customerrors
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 )
@@ -64,3 +65,9 @@ func NewServiceUnavailableError(err error) error {
 		Err:  err,
 	}
 }
+
+var (
+	AlreadyExistsError      = NewAlreadyExistsError(errors.New("entity already exists"))
+	ServiceUnavailableError = NewServiceUnavailableError(errors.New("service is shutting down"))
+	UnsupportedOperation    = NewNotAllowedError(errors.New("method is not allowed"))
+)

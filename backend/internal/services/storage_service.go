@@ -3,7 +3,6 @@ package services
 
 import (
 	"context"
-	"errors"
 	"sync"
 	"sync/atomic"
 
@@ -65,13 +64,6 @@ type TaskResult struct {
 	Err    error
 }
 
-// Кастомные типы ошибок, возвращаемых некоторыми из функций пакета
-var (
-	alreadyExistsError          = customerrors.NewAlreadyExistsError(errors.New("entity already exists"))
-	serviceUnavailableError     = customerrors.NewServiceUnavailableError(errors.New("service is shutting down"))
-	serviceUnsupportedOperation = customerrors.NewNotAllowedError(errors.New("method is not allowed"))
-)
-
 // NewStorageService - инициализация сервиса
 func NewStorageService(usersRepo repositories.IRepository[entities.User, dtos.NewUser],
 	binariesRepo repositories.IRepository[entities.BinaryData, dtos.NewBinaryData],
@@ -102,7 +94,7 @@ func (s *StorageService) taskProcessor() {
 		if s.isShuttingDown.Load() {
 			if task.ResultCh != nil {
 				task.ResultCh <- TaskResult{
-					Err: serviceUnavailableError,
+					Err: customerrors.ServiceUnavailableError,
 				}
 				close(task.ResultCh)
 			}
@@ -150,7 +142,7 @@ func (s *StorageService) processBinaryTask(task Task) (interface{}, error) {
 		id := task.Payload.(string)
 		return nil, s.binariesRepo.Delete(task.Context, id)
 	default:
-		return nil, serviceUnsupportedOperation
+		return nil, customerrors.UnsupportedOperation
 	}
 }
 
@@ -171,7 +163,7 @@ func (s *StorageService) processCardTask(task Task) (interface{}, error) {
 		id := task.Payload.(string)
 		return nil, s.cardsRepo.Delete(task.Context, id)
 	default:
-		return nil, serviceUnsupportedOperation
+		return nil, customerrors.UnsupportedOperation
 	}
 }
 
@@ -192,7 +184,7 @@ func (s *StorageService) processCredentialsTask(task Task) (interface{}, error) 
 		id := task.Payload.(string)
 		return nil, s.credentialsRepo.Delete(task.Context, id)
 	default:
-		return nil, serviceUnsupportedOperation
+		return nil, customerrors.UnsupportedOperation
 	}
 }
 
@@ -213,7 +205,7 @@ func (s *StorageService) processTextTask(task Task) (interface{}, error) {
 		id := task.Payload.(string)
 		return nil, s.textsRepo.Delete(task.Context, id)
 	default:
-		return nil, serviceUnsupportedOperation
+		return nil, customerrors.UnsupportedOperation
 	}
 }
 
@@ -234,7 +226,7 @@ func (s *StorageService) processUserTask(task Task) (interface{}, error) {
 		id := task.Payload.(string)
 		return nil, s.usersRepo.Delete(task.Context, id)
 	default:
-		return nil, serviceUnsupportedOperation
+		return nil, customerrors.UnsupportedOperation
 	}
 }
 
@@ -242,7 +234,7 @@ func (s *StorageService) processUserTask(task Task) (interface{}, error) {
 func (s *StorageService) enqueueTask(task Task) (interface{}, error) {
 	// Проверяем, не начался ли shutdown
 	if s.isShuttingDown.Load() {
-		return nil, serviceUnavailableError
+		return nil, customerrors.ServiceUnavailableError
 	}
 
 	if task.ResultCh == nil {
@@ -545,7 +537,7 @@ func (s *StorageService) createUser(ctx context.Context, newUser *dtos.NewUser) 
 		return nil, err
 	}
 	if existedUser != nil {
-		return nil, alreadyExistsError
+		return nil, customerrors.AlreadyExistsError
 	}
 
 	user, err := s.usersRepo.Create(ctx, newUser)
@@ -568,7 +560,7 @@ func (s *StorageService) updateUser(ctx context.Context, user *entities.User) (*
 			return nil, err
 		}
 		if existedUser != nil {
-			return nil, alreadyExistsError
+			return nil, customerrors.AlreadyExistsError
 		}
 	}
 
