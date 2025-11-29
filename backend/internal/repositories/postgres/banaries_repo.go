@@ -3,6 +3,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/JustScorpio/GophKeeper/backend/internal/customcontext"
@@ -70,8 +71,12 @@ func (r *PgBinariesRepo) Get(ctx context.Context, id string) (*entities.BinaryDa
 	err := r.db.QueryRow(ctx, "SELECT id, data, metadata, ownerid FROM Binaries WHERE id = $1 AND ownerid = $2", id, userID).Scan(&binaryData.ID, &binaryData.Data, &binaryData.Metadata, &binaryData.OwnerID)
 
 	if err != nil {
-		return nil, err
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil // Запись не найдена
+		}
+		return nil, fmt.Errorf("failed to get entity: %w", err)
 	}
+
 	return &binaryData, nil
 }
 

@@ -3,6 +3,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/JustScorpio/GophKeeper/backend/internal/customcontext"
@@ -73,8 +74,12 @@ func (r *PgCardsRepo) Get(ctx context.Context, id string) (*entities.CardInforma
 	err := r.db.QueryRow(ctx, "SELECT id, number, cardholder, expirationdate, cvv, metadata, ownerid FROM Cards WHERE id = $1 AND ownerid = $2", id, userID).Scan(&card.ID, &card.Number, &card.CardHolder, &card.ExpirationDate, &card.CVV, &card.Metadata, &card.OwnerID)
 
 	if err != nil {
-		return nil, err
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil // Запись не найдена
+		}
+		return nil, fmt.Errorf("failed to get entity: %w", err)
 	}
+
 	return &card, nil
 }
 

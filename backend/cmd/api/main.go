@@ -35,6 +35,9 @@ func main() {
 	// вывести аргументы
 	fmt.Printf("Build version: %s\nBuild date: %s\n", buildVersion, buildDate)
 
+	// обрабатываем аргументы командной строки
+	parseFlags()
+
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}

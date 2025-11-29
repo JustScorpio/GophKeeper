@@ -3,6 +3,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/JustScorpio/GophKeeper/backend/internal/customcontext"
@@ -71,8 +72,12 @@ func (r *PgCredentialsRepo) Get(ctx context.Context, id string) (*entities.Crede
 	err := r.db.QueryRow(ctx, "SELECT id, login, password, metadata, ownerid FROM Credentials WHERE id = $1 AND ownerID = $2", id, userID).Scan(&credentials.ID, &credentials.Login, &credentials.Password, &credentials.Metadata, &credentials.OwnerID)
 
 	if err != nil {
-		return nil, err
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil // Запись не найдена
+		}
+		return nil, fmt.Errorf("failed to get entity: %w", err)
 	}
+
 	return &credentials, nil
 }
 

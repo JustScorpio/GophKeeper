@@ -3,6 +3,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/JustScorpio/GophKeeper/backend/internal/models/dtos"
@@ -63,8 +64,12 @@ func (r *PgUsersRepo) Get(ctx context.Context, login string) (*entities.User, er
 	err := r.db.QueryRow(ctx, "SELECT login, password FROM users WHERE login = $1", login).Scan(&user.Login, &user.Password)
 
 	if err != nil {
-		return nil, err
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil // Запись не найдена
+		}
+		return nil, fmt.Errorf("failed to get entity: %w", err)
 	}
+
 	return &user, nil
 }
 
