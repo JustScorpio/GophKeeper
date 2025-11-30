@@ -50,7 +50,7 @@ func (r *PgUsersRepo) GetAll(ctx context.Context) ([]entities.User, error) {
 		var user entities.User
 		err := rows.Scan(&user.Login, &user.Password)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to scan user: %w", err)
 		}
 		users = append(users, user)
 	}
@@ -77,10 +77,10 @@ func (r *PgUsersRepo) Get(ctx context.Context, login string) (*entities.User, er
 func (r *PgUsersRepo) Create(ctx context.Context, user *dtos.NewUser) (*entities.User, error) {
 	var entity entities.User
 	err := r.db.QueryRow(ctx, "INSERT INTO users (login, password) VALUES ($1, $2) RETURNING login, password", user.Login, user.Password).Scan(&entity.Login, &entity.Password)
-
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
+
 	return &entity, nil
 }
 
@@ -88,10 +88,10 @@ func (r *PgUsersRepo) Create(ctx context.Context, user *dtos.NewUser) (*entities
 func (r *PgUsersRepo) Update(ctx context.Context, user *entities.User) (*entities.User, error) {
 	var updatedEntity entities.User
 	err := r.db.QueryRow(ctx, "UPDATE users SET password = $2 WHERE login = $1 RETURNING login, password", user.Login, user.Password).Scan(&updatedEntity.Login, &updatedEntity.Password)
-
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to update user: %w", err)
 	}
+
 	return &updatedEntity, nil
 }
 

@@ -41,7 +41,7 @@ func (r *PgTextsRepo) GetAll(ctx context.Context) ([]entities.TextData, error) {
 
 	rows, err := r.db.Query(ctx, "SELECT id, data, metadata, ownerid FROM Texts WHERE ownerid = $1", userID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get texts: %w", err)
 	}
 
 	defer rows.Close()
@@ -50,59 +50,60 @@ func (r *PgTextsRepo) GetAll(ctx context.Context) ([]entities.TextData, error) {
 		return nil, err
 	}
 
-	var Texts []entities.TextData
+	var texts []entities.TextData
 	for rows.Next() {
-		var textData entities.TextData
-		err := rows.Scan(&textData.ID, &textData.Data, &textData.Metadata, &textData.OwnerID)
+		var text entities.TextData
+		err := rows.Scan(&text.ID, &text.Data, &text.Metadata, &text.OwnerID)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to scan text: %w", err)
 		}
-		Texts = append(Texts, textData)
+		texts = append(texts, text)
 	}
 
-	return Texts, nil
+	return texts, nil
 }
 
 // Get - получить сущность по ИД (при наличии прав у текущего пользователя)
 func (r *PgTextsRepo) Get(ctx context.Context, id string) (*entities.TextData, error) {
 	userID := customcontext.GetUserID((ctx))
 
-	var textData entities.TextData
-	err := r.db.QueryRow(ctx, "SELECT id, data, metadata, ownerid FROM Texts WHERE id = $1 AND ownerid = $2", id, userID).Scan(&textData.ID, &textData.Data, &textData.Metadata, &textData.OwnerID)
+	var text entities.TextData
+	err := r.db.QueryRow(ctx, "SELECT id, data, metadata, ownerid FROM Texts WHERE id = $1 AND ownerid = $2", id, userID).Scan(&text.ID, &text.Data, &text.Metadata, &text.OwnerID)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil // Запись не найдена
 		}
-		return nil, fmt.Errorf("failed to get entity: %w", err)
+		return nil, fmt.Errorf("failed to get text: %w", err)
 	}
 
-	return &textData, nil
+	return &text, nil
 }
 
 // Create - создать сущность
-func (r *PgTextsRepo) Create(ctx context.Context, textData *dtos.NewTextData) (*entities.TextData, error) {
+func (r *PgTextsRepo) Create(ctx context.Context, text *dtos.NewTextData) (*entities.TextData, error) {
 	userID := customcontext.GetUserID(ctx)
 
 	var entity entities.TextData
-	err := r.db.QueryRow(ctx, "INSERT INTO Texts (data, metadata, ownerid) VALUES ($1, $2, $3) RETURNING id, data, metadata, ownerid", textData.Data, textData.Metadata, userID).Scan(&entity.ID, &entity.Data, &entity.Metadata, &entity.OwnerID)
+	err := r.db.QueryRow(ctx, "INSERT INTO Texts (data, metadata, ownerid) VALUES ($1, $2, $3) RETURNING id, data, metadata, ownerid", text.Data, text.Metadata, userID).Scan(&entity.ID, &entity.Data, &entity.Metadata, &entity.OwnerID)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create text: %w", err)
 	}
 	return &entity, nil
 }
 
 // Update - изменить сущность
-func (r *PgTextsRepo) Update(ctx context.Context, textData *entities.TextData) (*entities.TextData, error) {
+func (r *PgTextsRepo) Update(ctx context.Context, text *entities.TextData) (*entities.TextData, error) {
 	userID := customcontext.GetUserID(ctx)
 
 	var updatedEntity entities.TextData
-	err := r.db.QueryRow(ctx, "UPDATE Texts SET data = $2, metadata = $3, ownerid = $4 WHERE id = $1 AND ownerid = $5 RETURNING id, data, metadata, ownerid", textData.ID, textData.Data, textData.Metadata, textData.OwnerID, userID).Scan(&updatedEntity.ID, &updatedEntity.Data, &updatedEntity.Metadata, &updatedEntity.OwnerID)
+	err := r.db.QueryRow(ctx, "UPDATE Texts SET data = $2, metadata = $3, ownerid = $4 WHERE id = $1 AND ownerid = $5 RETURNING id, data, metadata, ownerid", text.ID, text.Data, text.Metadata, text.OwnerID, userID).Scan(&updatedEntity.ID, &updatedEntity.Data, &updatedEntity.Metadata, &updatedEntity.OwnerID)
 
 	if err != nil {
 		return nil, err
 	}
+
 	return &updatedEntity, nil
 }
 

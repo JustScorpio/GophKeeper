@@ -1,0 +1,102 @@
+// SQLite Репозиторий для текстовых данных
+package sqlite
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+
+	"github.com/JustScorpio/GophKeeper/frontend/internal/models/dtos"
+	"github.com/JustScorpio/GophKeeper/frontend/internal/models/entities"
+)
+
+// TextsRepo - репозиторий с текстовыми данными
+type TextsRepo struct {
+	db *sql.DB
+}
+
+// NewPgTextsRepo - инициализация репозитория
+func NewTextsRepo(db *sql.DB) (*TextsRepo, error) {
+	_, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS texts (
+			id TEXT PRIMARY KEY,
+			data TEXT NOT NULL,
+			metadata TEXT
+		)
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create texts table: %w", err)
+	}
+
+	return &TextsRepo{db: db}, nil
+}
+
+// GetAll - получить все сущности (при наличии прав у текущего пользователя)
+func (r *TextsRepo) GetAll(ctx context.Context) ([]entities.TextData, error) {
+	rows, err := r.db.Query("SELECT id, data, metadata FROM texts")
+	if err != nil {
+		return nil, fmt.Errorf("failed to get texts: %w", err)
+	}
+	defer rows.Close()
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	var texts []entities.TextData
+	for rows.Next() {
+		var text entities.TextData
+		err := rows.Scan(&text.ID, &text.Data, &text.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan text: %w", err)
+		}
+		texts = append(texts, text)
+	}
+
+	return texts, nil
+}
+
+// Get - получить сущность по ИД
+func (r *TextsRepo) Get(ctx context.Context, id string) (*entities.TextData, error) {
+	var text entities.TextData
+	err := r.db.QueryRow("SELECT id, data, metadata FROM texts WHERE id = ?", id).Scan(&text.ID, &text.Data, &text.Metadata)
+
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("failed to get text: %w", err)
+	}
+
+	return &text, nil
+}
+
+// Create - создать сущность
+func (r *TextsRepo) Create(ctx context.Context, dto *dtos.NewTextData) (*entities.TextData, error) {
+	var text entities.TextData
+	err := r.db.QueryRow("INSERT INTO texts (data, metadata) VALUES (?, ?) RETURNING id, data, metadata", dto.Data, dto.Metadata).Scan(&text.ID, &text.Data, &text.Metadata)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create text: %w", err)
+	}
+
+	return &text, nil
+}
+
+// Update - изменить сущность
+func (r *TextsRepo) Update(ctx context.Context, entity *entities.TextData) (*entities.TextData, error) {
+	var updatedText entities.TextData
+	err := r.db.QueryRow("UPDATE texts SET data = ?, metadata = ? WHERE id = ? RETURNING id, data, metadata", entity.Data, entity.Metadata, entity.ID).Scan(&updatedText.ID, &updatedText.Data, &updatedText.Metadata)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to update text: %w", err)
+	}
+
+	return &updatedText, nil
+}
+
+func (r *TextsRepo) Delete(ctx context.Context, id string) error {
+	_, err := r.db.Exec("DELETE FROM texts WHERE id = ?", id)
+	return err
+}

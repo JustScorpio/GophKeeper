@@ -41,7 +41,7 @@ func (r *PgBinariesRepo) GetAll(ctx context.Context) ([]entities.BinaryData, err
 
 	rows, err := r.db.Query(ctx, "SELECT id, data, metadata, ownerid FROM Binaries WHERE ownerid = $1", userID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get entities: %w", err)
 	}
 
 	defer rows.Close()
@@ -50,17 +50,17 @@ func (r *PgBinariesRepo) GetAll(ctx context.Context) ([]entities.BinaryData, err
 		return nil, err
 	}
 
-	var Binaries []entities.BinaryData
+	var binaries []entities.BinaryData
 	for rows.Next() {
 		var binaryData entities.BinaryData
 		err := rows.Scan(&binaryData.ID, &binaryData.Data, &binaryData.Metadata, &binaryData.OwnerID)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to scan entity: %w", err)
 		}
-		Binaries = append(Binaries, binaryData)
+		binaries = append(binaries, binaryData)
 	}
 
-	return Binaries, nil
+	return binaries, nil
 }
 
 // Get - получить сущность по ИД (при наличии прав у текущего пользователя)
@@ -88,7 +88,7 @@ func (r *PgBinariesRepo) Create(ctx context.Context, binaryData *dtos.NewBinaryD
 	err := r.db.QueryRow(ctx, "INSERT INTO Binaries (data, metadata, ownerid) VALUES ($1, $2, $3) RETURNING id, data, metadata, ownerid", binaryData.Data, binaryData.Metadata, userID).Scan(&entity.ID, &entity.Data, &entity.Metadata, &entity.OwnerID)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create entity: %w", err)
 	}
 	return &entity, nil
 }
@@ -103,6 +103,7 @@ func (r *PgBinariesRepo) Update(ctx context.Context, binaryData *entities.Binary
 	if err != nil {
 		return nil, err
 	}
+
 	return &updatedEntity, nil
 }
 

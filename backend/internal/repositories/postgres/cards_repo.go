@@ -53,17 +53,17 @@ func (r *PgCardsRepo) GetAll(ctx context.Context) ([]entities.CardInformation, e
 		return nil, err
 	}
 
-	var Cards []entities.CardInformation
+	var cards []entities.CardInformation
 	for rows.Next() {
 		var card entities.CardInformation
 		err := rows.Scan(&card.ID, &card.Number, &card.CardHolder, &card.ExpirationDate, &card.CVV, &card.Metadata, &card.OwnerID)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to scan card: %w", err)
 		}
-		Cards = append(Cards, card)
+		cards = append(cards, card)
 	}
 
-	return Cards, nil
+	return cards, nil
 }
 
 // Get - получить сущность по ИД (при наличии прав у текущего пользователя)

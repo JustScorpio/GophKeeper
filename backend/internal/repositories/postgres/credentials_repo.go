@@ -42,7 +42,7 @@ func (r *PgCredentialsRepo) GetAll(ctx context.Context) ([]entities.Credentials,
 
 	rows, err := r.db.Query(ctx, "SELECT id, login, password, metadata, ownerid FROM Credentials WHERE ownerid = $1", userID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get credentials: %w", err)
 	}
 
 	defer rows.Close()
@@ -51,17 +51,17 @@ func (r *PgCredentialsRepo) GetAll(ctx context.Context) ([]entities.Credentials,
 		return nil, err
 	}
 
-	var Credentials []entities.Credentials
+	var credentials []entities.Credentials
 	for rows.Next() {
-		var credentials entities.Credentials
-		err := rows.Scan(&credentials.ID, &credentials.Login, &credentials.Password, &credentials.Metadata, &credentials.OwnerID)
+		var cred entities.Credentials
+		err := rows.Scan(&cred.ID, &cred.Login, &cred.Password, &cred.Metadata, &cred.OwnerID)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to scan credentials: %w", err)
 		}
-		Credentials = append(Credentials, credentials)
+		credentials = append(credentials, cred)
 	}
 
-	return Credentials, nil
+	return credentials, nil
 }
 
 // Get - получить сущность по ИД (при наличии прав у текущего пользователя)
@@ -75,7 +75,7 @@ func (r *PgCredentialsRepo) Get(ctx context.Context, id string) (*entities.Crede
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil // Запись не найдена
 		}
-		return nil, fmt.Errorf("failed to get entity: %w", err)
+		return nil, fmt.Errorf("failed to get credentials: %w", err)
 	}
 
 	return &credentials, nil
@@ -89,7 +89,7 @@ func (r *PgCredentialsRepo) Create(ctx context.Context, credentials *dtos.NewCre
 	err := r.db.QueryRow(ctx, "INSERT INTO Credentials (login, password, metadata, ownerid) VALUES ($1, $2, $3, $4) RETURNING id, login, password, metadata, ownerid", credentials.Login, credentials.Password, credentials.Metadata, userID).Scan(&entity.ID, &entity.Login, &entity.Password, &entity.Metadata, &entity.OwnerID)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create credentials: %w", err)
 	}
 	return &entity, nil
 }
@@ -102,7 +102,7 @@ func (r *PgCredentialsRepo) Update(ctx context.Context, credentials *entities.Cr
 	err := r.db.QueryRow(ctx, "UPDATE Credentials SET login = $2, password = $3, metadata = $4, ownerid = $5 WHERE id = $1 AND ownerid = $6 RETURNING id, login, password, metadata, ownerid", credentials.ID, credentials.Login, credentials.Password, credentials.Metadata, credentials.OwnerID, userID).Scan(&updatedEntity.ID, &updatedEntity.Login, &updatedEntity.Password, &updatedEntity.Metadata, &updatedEntity.OwnerID)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to update credentials: %w", err)
 	}
 	return &updatedEntity, nil
 }
