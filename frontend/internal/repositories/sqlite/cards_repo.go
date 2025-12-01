@@ -16,11 +16,11 @@ type CardsRepo struct {
 	db *sql.DB
 }
 
-// NewPgCardsRepo - инициализация репозитория
+// NewCardsRepo - инициализация репозитория
 func NewCardsRepo(db *sql.DB) (*CardsRepo, error) {
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS cards (
-			id TEXT PRIMARY KEY,
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			number TEXT NOT NULL,
 			card_holder TEXT NOT NULL,
 			expiration_date TEXT NOT NULL,
@@ -35,7 +35,7 @@ func NewCardsRepo(db *sql.DB) (*CardsRepo, error) {
 	return &CardsRepo{db: db}, nil
 }
 
-// GetAll - получить все сущности (при наличии прав у текущего пользователя)
+// GetAll - получить все сущности
 func (r *CardsRepo) GetAll(ctx context.Context) ([]entities.CardInformation, error) {
 	rows, err := r.db.Query("SELECT id, number, card_holder, expiration_date, cvv, metadata FROM cards")
 	if err != nil {
@@ -61,7 +61,7 @@ func (r *CardsRepo) GetAll(ctx context.Context) ([]entities.CardInformation, err
 	return cards, nil
 }
 
-// Get - получить сущность по ИД (при наличии прав у текущего пользователя)
+// Get - получить сущность по ИД
 func (r *CardsRepo) Get(ctx context.Context, id string) (*entities.CardInformation, error) {
 	var card entities.CardInformation
 	err := r.db.QueryRow("SELECT id, number, card_holder, expiration_date, cvv, metadata FROM cards WHERE id = ?", id).Scan(&card.ID, &card.Number, &card.CardHolder, &card.ExpirationDate, &card.CVV, &card.Metadata)

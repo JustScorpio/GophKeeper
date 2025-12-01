@@ -1,5 +1,5 @@
 // repositories содержит интерфейс для реализации паттерна "репозиторий"
-package sqlite
+package repositories
 
 import (
 	"context"

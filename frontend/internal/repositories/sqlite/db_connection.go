@@ -14,7 +14,7 @@ func NewDatabase(dbPath string) (*sql.DB, error) {
 	}
 
 	// Открываем (или создаем) базу данных
-	db, err := sql.Open("sqlite", "file:"+dbPath)
+	db, err := sql.Open("sqlite3", "file:"+dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}

@@ -11,17 +11,17 @@ import (
 	"github.com/JustScorpio/GophKeeper/frontend/internal/models/entities"
 )
 
-// PgBinariesRepo - репозиторий с бинарными данными
+// BinariesRepo - репозиторий с бинарными данными
 type BinariesRepo struct {
 	db *sql.DB
 }
 
-// NewPgBinariesRepo - инициализация репозитория
+// NewBinariesRepo - инициализация репозитория
 func NewBinariesRepo(db *sql.DB) (*BinariesRepo, error) {
 	// Создание таблицы Binaries, если её нет
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS binaries (
-			id TEXT PRIMARY KEY AUTOINCREMENT,
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			data BLOB NOT NULL,
 			metadata TEXT
 		)

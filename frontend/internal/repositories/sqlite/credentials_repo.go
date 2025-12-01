@@ -16,11 +16,11 @@ type CredentialsRepo struct {
 	db *sql.DB
 }
 
-// NewPgCredentialsRepo - инициализация репозитория
+// NewCredentialsRepo - инициализация репозитория
 func NewCredentialsRepo(db *sql.DB) (*CredentialsRepo, error) {
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS credentials (
-			id TEXT PRIMARY KEY,
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			login TEXT NOT NULL,
 			password TEXT NOT NULL,
 			metadata TEXT

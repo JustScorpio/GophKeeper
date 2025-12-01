@@ -16,11 +16,11 @@ type TextsRepo struct {
 	db *sql.DB
 }
 
-// NewPgTextsRepo - инициализация репозитория
+// NewTextsRepo - инициализация репозитория
 func NewTextsRepo(db *sql.DB) (*TextsRepo, error) {
 	_, err := db.Exec(`
 		CREATE TABLE IF NOT EXISTS texts (
-			id TEXT PRIMARY KEY,
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			data TEXT NOT NULL,
 			metadata TEXT
 		)
@@ -32,7 +32,7 @@ func NewTextsRepo(db *sql.DB) (*TextsRepo, error) {
 	return &TextsRepo{db: db}, nil
 }
 
-// GetAll - получить все сущности (при наличии прав у текущего пользователя)
+// GetAll - получить все сущности
 func (r *TextsRepo) GetAll(ctx context.Context) ([]entities.TextData, error) {
 	rows, err := r.db.Query("SELECT id, data, metadata FROM texts")
 	if err != nil {
