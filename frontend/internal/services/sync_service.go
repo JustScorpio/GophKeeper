@@ -20,8 +20,8 @@ func NewSyncService(apiClient *APIClient, localStorage *StorageService) *SyncSer
 	}
 }
 
-// SyncOnLogin - синхронизация при логине
-func (s *SyncService) SyncOnLogin(ctx context.Context) error {
+// Sync - синхронизация данных с сервером
+func (s *SyncService) Sync(ctx context.Context) error {
 	if err := s.syncBinaries(ctx); err != nil {
 		return fmt.Errorf("failed to sync binaries: %w", err)
 	}

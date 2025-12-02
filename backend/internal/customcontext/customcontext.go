@@ -3,7 +3,7 @@ package customcontext
 
 import "context"
 
-// contextKey - алиас вокруг int. Нужен для оопределение кастомных типов ключей
+// contextKey - алиас вокруг int. Нужен для определение кастомных типов ключей
 type contextKey int
 
 // Кастомные типы ключей
