@@ -9,20 +9,17 @@ import (
 )
 
 type GophkeeperService struct {
-	authService  *AuthService
 	apiClient    *APIClient
 	localStorage *StorageService
 	syncService  *SyncService
 }
 
 func NewGophkeeperService(
-	authService *AuthService,
 	apiClient *APIClient,
 	localStorage *StorageService,
 	syncService *SyncService,
 ) *GophkeeperService {
 	return &GophkeeperService{
-		authService:  authService,
 		apiClient:    apiClient,
 		localStorage: localStorage,
 		syncService:  syncService,
@@ -30,22 +27,22 @@ func NewGophkeeperService(
 }
 
 // Auth methods
-func (s *GophkeeperService) Register(ctx context.Context, login, password string) (*entities.User, error) {
-	return s.authService.Register(ctx, login, password)
+func (s *GophkeeperService) Register(ctx context.Context, login, password string) error {
+	return s.apiClient.Register(ctx, login, password)
 }
 
-func (s *GophkeeperService) Login(ctx context.Context, login, password string) (*entities.User, error) {
-	user, err := s.authService.Login(ctx, login, password)
+func (s *GophkeeperService) Login(ctx context.Context, login, password string) error {
+	err := s.apiClient.Login(ctx, login, password)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// Синхронизируем данные
 	if err := s.syncService.Sync(ctx); err != nil {
-		return nil, fmt.Errorf("login successful but sync failed: %w", err)
+		return fmt.Errorf("sync failed: %w", err)
 	}
 
-	return user, nil
+	return nil
 }
 
 // CreateBinary - создать бинарные данные (на клиенте и сервере)

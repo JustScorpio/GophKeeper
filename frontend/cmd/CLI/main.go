@@ -20,7 +20,7 @@ import (
 var (
 	// build-переменные заполняемые с помощью ldflags -X
 	buildVersion = "1.0"
-	buildDate    = time.Now().Format("January 2, 2006")
+	buildDate    = time.Now().Format("January 2 2006")
 )
 
 // configContent - содержимое конфигурационного файла
@@ -36,7 +36,6 @@ type AppConfiguration struct {
 
 type App struct {
 	dbManager    *sqlite.DatabaseManager
-	authService  *services.AuthService
 	apiClient    *services.APIClient
 	localStorage *services.StorageService
 	syncService  *services.SyncService
@@ -46,7 +45,7 @@ type App struct {
 }
 
 func main() {
-	fmt.Printf("%s v%s\n", "GophKeeper", buildVersion)
+	fmt.Printf("%s v.%s %s\n", "GophKeeper", buildVersion, buildDate)
 	fmt.Println("==========================")
 
 	// Инициализация приложения
@@ -86,8 +85,6 @@ func initializeApp() (*App, error) {
 	}
 
 	// Инициализация сервисов
-	authService := services.NewAuthService(conf.ServerAddr)
-
 	apiClient := services.NewAPIClient(conf.ServerAddr)
 
 	localStorage := services.NewStorageService(
@@ -99,11 +96,10 @@ func initializeApp() (*App, error) {
 
 	syncService := services.NewSyncService(apiClient, localStorage)
 
-	appService := services.NewGophkeeperService(authService, apiClient, localStorage, syncService)
+	appService := services.NewGophkeeperService(apiClient, localStorage, syncService)
 
 	return &App{
 		dbManager:    dbManager,
-		authService:  authService,
 		apiClient:    apiClient,
 		localStorage: localStorage,
 		syncService:  syncService,
@@ -215,16 +211,16 @@ func (a *App) handleLogin(reader *bufio.Reader) {
 	defer cancel()
 
 	fmt.Print("Logging in... ")
-	user, err := a.appService.Login(ctx, username, password)
+	err := a.appService.Login(ctx, username, password)
 	if err != nil {
 		fmt.Printf("FAILED: %v\n", err)
 		return
 	}
 
 	a.isLoggedIn = true
-	a.currentUser = user.Login
+	a.currentUser = username
 	fmt.Println("SUCCESS")
-	fmt.Printf("Welcome, %s!\n", user.Login)
+	fmt.Printf("Welcome, %s!\n", username)
 }
 
 func (a *App) handleRegister(reader *bufio.Reader) {
@@ -238,27 +234,20 @@ func (a *App) handleRegister(reader *bufio.Reader) {
 	password, _ := reader.ReadString('\n')
 	password = strings.TrimSpace(password)
 
-	fmt.Print("Confirm Password: ")
-	confirmPassword, _ := reader.ReadString('\n')
-	confirmPassword = strings.TrimSpace(confirmPassword)
-
-	if password != confirmPassword {
-		fmt.Println("Passwords do not match!")
-		return
-	}
-
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	fmt.Print("Registering... ")
-	user, err := a.appService.Register(ctx, username, password)
+	err := a.appService.Register(ctx, username, password)
 	if err != nil {
 		fmt.Printf("FAILED: %v\n", err)
 		return
 	}
 
+	a.isLoggedIn = true
+	a.currentUser = username
 	fmt.Println("SUCCESS")
-	fmt.Printf("Account created for %s. You can now login.\n", user.Login)
+	fmt.Printf("Account created. Welcome, %s!\n", username)
 }
 
 func (a *App) handleLogout() {

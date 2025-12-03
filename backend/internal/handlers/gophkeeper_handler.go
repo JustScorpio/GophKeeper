@@ -107,7 +107,7 @@ func (h *GophkeeperHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	// Проверяем пользователя
 	user, err := h.service.GetUser(r.Context(), req.Login)
-	if err != nil {
+	if err != nil || user == nil {
 		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
 		return
 	}

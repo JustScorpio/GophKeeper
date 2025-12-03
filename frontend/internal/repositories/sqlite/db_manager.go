@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	_ "modernc.org/sqlite"
 )
 
 type DatabaseManager struct {
@@ -22,7 +24,7 @@ func NewDatabaseManager(dbPath string) (*DatabaseManager, error) {
 	}
 
 	// Открываем (или создаем) базу данных
-	db, err := sql.Open("sqlite3", "file:"+dbPath)
+	db, err := sql.Open("sqlite", "file:"+dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}

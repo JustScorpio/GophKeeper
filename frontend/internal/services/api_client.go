@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/cookiejar"
 
 	"github.com/JustScorpio/GophKeeper/frontend/internal/models/dtos"
 	"github.com/JustScorpio/GophKeeper/frontend/internal/models/entities"
@@ -15,14 +16,79 @@ import (
 type APIClient struct {
 	baseURL    string
 	httpClient *http.Client
+	jar        http.CookieJar
 }
 
 // NewAPIClient - создать клиент для взаимодействия с апи сервера
 func NewAPIClient(baseURL string) *APIClient {
+	jar, _ := cookiejar.New(nil)
 	return &APIClient{
 		baseURL:    baseURL,
-		httpClient: &http.Client{},
+		httpClient: &http.Client{Jar: jar},
+		jar:        jar,
 	}
+}
+
+// Register - регистрация пользователя
+func (s *APIClient) Register(ctx context.Context, login, password string) error {
+	reqBody := map[string]string{
+		"login":    login,
+		"password": password,
+	}
+
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", s.baseURL+"/api/user/register", bytes.NewReader(jsonData))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("registration failed with status: %d", resp.StatusCode)
+	}
+
+	return nil
+}
+
+// Login - аутентификация пользователя
+func (s *APIClient) Login(ctx context.Context, login, password string) error {
+	reqBody := map[string]string{
+		"login":    login,
+		"password": password,
+	}
+
+	jsonData, err := json.Marshal(reqBody)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", s.baseURL+"/api/user/login", bytes.NewReader(jsonData))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := s.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("login failed with status: %d", resp.StatusCode)
+	}
+
+	return nil
 }
 
 // CreateBinary - создать бинарные данные
