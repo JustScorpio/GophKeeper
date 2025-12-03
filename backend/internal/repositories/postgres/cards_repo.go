@@ -101,7 +101,7 @@ func (r *PgCardsRepo) Update(ctx context.Context, card *entities.CardInformation
 	userID := customcontext.GetUserID(ctx)
 
 	var updatedEntity entities.CardInformation
-	err := r.db.QueryRow(ctx, "UPDATE Cards SET number = $2, cardholder = $3, expirationdate = $4, cvv = $5, metadata = $6, ownerid = $7 WHERE id = $1 AND ownerid = $8 RETURNING id, number, cardholder, expirationdate, cvv, metadata, ownerid", card.ID, card.Number, card.CardHolder, card.ExpirationDate, card.CVV, card.Metadata, card.OwnerID, userID).Scan(&updatedEntity.ID, &updatedEntity.Number, &updatedEntity.CardHolder, &updatedEntity.ExpirationDate, &updatedEntity.CVV, &updatedEntity.Metadata, &updatedEntity.OwnerID)
+	err := r.db.QueryRow(ctx, "UPDATE Cards SET number = $2, cardholder = $3, expirationdate = $4, cvv = $5, metadata = $6 WHERE id = $1 AND ownerid = $7 RETURNING id, number, cardholder, expirationdate, cvv, metadata, ownerid", card.ID, card.Number, card.CardHolder, card.ExpirationDate, card.CVV, card.Metadata, userID).Scan(&updatedEntity.ID, &updatedEntity.Number, &updatedEntity.CardHolder, &updatedEntity.ExpirationDate, &updatedEntity.CVV, &updatedEntity.Metadata, &updatedEntity.OwnerID)
 
 	if err != nil {
 		return nil, err

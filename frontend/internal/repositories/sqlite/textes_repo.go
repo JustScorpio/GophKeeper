@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/JustScorpio/GophKeeper/frontend/internal/models/dtos"
 	"github.com/JustScorpio/GophKeeper/frontend/internal/models/entities"
 )
 
@@ -73,9 +72,9 @@ func (r *TextsRepo) Get(ctx context.Context, id string) (*entities.TextData, err
 }
 
 // Create - создать сущность
-func (r *TextsRepo) Create(ctx context.Context, dto *dtos.NewTextData) (*entities.TextData, error) {
+func (r *TextsRepo) Create(ctx context.Context, entity *entities.TextData) (*entities.TextData, error) {
 	var text entities.TextData
-	err := r.db.QueryRow("INSERT INTO texts (data, metadata) VALUES (?, ?) RETURNING id, data, metadata", dto.Data, dto.Metadata).Scan(&text.ID, &text.Data, &text.Metadata)
+	err := r.db.QueryRow("INSERT INTO texts (id, data, metadata) VALUES (?, ?, ?) RETURNING id, data, metadata", entity.ID, entity.Data, entity.Metadata).Scan(&text.ID, &text.Data, &text.Metadata)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create text: %w", err)

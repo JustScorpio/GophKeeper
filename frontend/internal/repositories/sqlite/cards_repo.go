@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/JustScorpio/GophKeeper/frontend/internal/models/dtos"
 	"github.com/JustScorpio/GophKeeper/frontend/internal/models/entities"
 )
 
@@ -77,11 +76,10 @@ func (r *CardsRepo) Get(ctx context.Context, id string) (*entities.CardInformati
 }
 
 // Create - создать сущность
-func (r *CardsRepo) Create(ctx context.Context, dto *dtos.NewCardInformation) (*entities.CardInformation, error) {
+func (r *CardsRepo) Create(ctx context.Context, entity *entities.CardInformation) (*entities.CardInformation, error) {
 	var card entities.CardInformation
 	err := r.db.QueryRow(
-		"INSERT INTO cards (number, card_holder, expiration_date, cvv, metadata) VALUES (?, ?, ?, ?, ?) RETURNING id, number, card_holder, expiration_date, cvv, metadata",
-		dto.Number, dto.CardHolder, dto.ExpirationDate, dto.CVV, dto.Metadata,
+		"INSERT INTO cards (id, number, card_holder, expiration_date, cvv, metadata) VALUES (?, ?, ?, ?, ?, ?) RETURNING id, number, card_holder, expiration_date, cvv, metadata", entity.ID, entity.Number, entity.CardHolder, entity.ExpirationDate, entity.CVV, entity.Metadata,
 	).Scan(&card.ID, &card.Number, &card.CardHolder, &card.ExpirationDate, &card.CVV, &card.Metadata)
 
 	if err != nil {

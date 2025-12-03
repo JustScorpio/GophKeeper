@@ -4,23 +4,22 @@ package services
 import (
 	"context"
 
-	"github.com/JustScorpio/GophKeeper/frontend/internal/models/dtos"
 	"github.com/JustScorpio/GophKeeper/frontend/internal/models/entities"
 	"github.com/JustScorpio/GophKeeper/frontend/internal/repositories"
 )
 
 type StorageService struct {
-	binariesRepo    repositories.IRepository[entities.BinaryData, dtos.NewBinaryData]
-	cardsRepo       repositories.IRepository[entities.CardInformation, dtos.NewCardInformation]
-	credentialsRepo repositories.IRepository[entities.Credentials, dtos.NewCredentials]
-	textsRepo       repositories.IRepository[entities.TextData, dtos.NewTextData]
+	binariesRepo    repositories.IRepository[entities.BinaryData]
+	cardsRepo       repositories.IRepository[entities.CardInformation]
+	credentialsRepo repositories.IRepository[entities.Credentials]
+	textsRepo       repositories.IRepository[entities.TextData]
 }
 
 func NewStorageService(
-	binariesRepo repositories.IRepository[entities.BinaryData, dtos.NewBinaryData],
-	cardsRepo repositories.IRepository[entities.CardInformation, dtos.NewCardInformation],
-	credentialsRepo repositories.IRepository[entities.Credentials, dtos.NewCredentials],
-	textsRepo repositories.IRepository[entities.TextData, dtos.NewTextData],
+	binariesRepo repositories.IRepository[entities.BinaryData],
+	cardsRepo repositories.IRepository[entities.CardInformation],
+	credentialsRepo repositories.IRepository[entities.Credentials],
+	textsRepo repositories.IRepository[entities.TextData],
 ) *StorageService {
 	return &StorageService{
 		binariesRepo:    binariesRepo,
@@ -31,8 +30,8 @@ func NewStorageService(
 }
 
 // Binary methods
-func (s *StorageService) CreateBinary(ctx context.Context, dto *dtos.NewBinaryData) (*entities.BinaryData, error) {
-	return s.binariesRepo.Create(ctx, dto)
+func (s *StorageService) CreateBinary(ctx context.Context, entity *entities.BinaryData) (*entities.BinaryData, error) {
+	return s.binariesRepo.Create(ctx, entity)
 }
 
 func (s *StorageService) GetBinary(ctx context.Context, id string) (*entities.BinaryData, error) {
@@ -52,8 +51,8 @@ func (s *StorageService) DeleteBinary(ctx context.Context, id string) error {
 }
 
 // Card methods
-func (s *StorageService) CreateCard(ctx context.Context, dto *dtos.NewCardInformation) (*entities.CardInformation, error) {
-	return s.cardsRepo.Create(ctx, dto)
+func (s *StorageService) CreateCard(ctx context.Context, entity *entities.CardInformation) (*entities.CardInformation, error) {
+	return s.cardsRepo.Create(ctx, entity)
 }
 
 func (s *StorageService) GetCard(ctx context.Context, id string) (*entities.CardInformation, error) {
@@ -73,8 +72,8 @@ func (s *StorageService) DeleteCard(ctx context.Context, id string) error {
 }
 
 // Credentials methods
-func (s *StorageService) CreateCredentials(ctx context.Context, dto *dtos.NewCredentials) (*entities.Credentials, error) {
-	return s.credentialsRepo.Create(ctx, dto)
+func (s *StorageService) CreateCredentials(ctx context.Context, entity *entities.Credentials) (*entities.Credentials, error) {
+	return s.credentialsRepo.Create(ctx, entity)
 }
 
 func (s *StorageService) GetCredentials(ctx context.Context, id string) (*entities.Credentials, error) {
@@ -94,8 +93,8 @@ func (s *StorageService) DeleteCredentials(ctx context.Context, id string) error
 }
 
 // Text methods
-func (s *StorageService) CreateText(ctx context.Context, dto *dtos.NewTextData) (*entities.TextData, error) {
-	return s.textsRepo.Create(ctx, dto)
+func (s *StorageService) CreateText(ctx context.Context, entity *entities.TextData) (*entities.TextData, error) {
+	return s.textsRepo.Create(ctx, entity)
 }
 
 func (s *StorageService) GetText(ctx context.Context, id string) (*entities.TextData, error) {

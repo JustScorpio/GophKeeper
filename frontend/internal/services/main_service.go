@@ -54,7 +54,7 @@ func (s *GophkeeperService) CreateBinary(ctx context.Context, dto *dtos.NewBinar
 	}
 
 	// Создаем локально
-	localBinary, err := s.localStorage.CreateBinary(ctx, dto)
+	localBinary, err := s.localStorage.CreateBinary(ctx, serverBinary)
 	if err != nil {
 		// TODO: Что делать локальное создание не удалось? Маловероятно да и правильного решения как будто нет - поэтому игнорим.
 		return serverBinary, fmt.Errorf("created on server but local failed: %w", err)
@@ -70,7 +70,7 @@ func (s *GophkeeperService) CreateCard(ctx context.Context, dto *dtos.NewCardInf
 		return nil, err
 	}
 
-	localCard, err := s.localStorage.CreateCard(ctx, dto)
+	localCard, err := s.localStorage.CreateCard(ctx, serverCard)
 	if err != nil {
 		return serverCard, fmt.Errorf("created on server but local failed: %w", err)
 	}
@@ -85,7 +85,7 @@ func (s *GophkeeperService) CreateCredentials(ctx context.Context, dto *dtos.New
 		return nil, err
 	}
 
-	localCredentials, err := s.localStorage.CreateCredentials(ctx, dto)
+	localCredentials, err := s.localStorage.CreateCredentials(ctx, serverCredentials)
 	if err != nil {
 		return serverCredentials, fmt.Errorf("created on server but local failed: %w", err)
 	}
@@ -100,7 +100,7 @@ func (s *GophkeeperService) CreateText(ctx context.Context, dto *dtos.NewTextDat
 		return nil, err
 	}
 
-	localText, err := s.localStorage.CreateText(ctx, dto)
+	localText, err := s.localStorage.CreateText(ctx, serverText)
 	if err != nil {
 		return serverText, fmt.Errorf("created on server but local failed: %w", err)
 	}

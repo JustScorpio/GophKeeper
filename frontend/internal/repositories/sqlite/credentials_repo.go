@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/JustScorpio/GophKeeper/frontend/internal/models/dtos"
 	"github.com/JustScorpio/GophKeeper/frontend/internal/models/entities"
 )
 
@@ -76,9 +75,9 @@ func (r *CredentialsRepo) Get(ctx context.Context, id string) (*entities.Credent
 }
 
 // Create - создать сущность
-func (r *CredentialsRepo) Create(ctx context.Context, dto *dtos.NewCredentials) (*entities.Credentials, error) {
+func (r *CredentialsRepo) Create(ctx context.Context, entity *entities.Credentials) (*entities.Credentials, error) {
 	var cred entities.Credentials
-	err := r.db.QueryRow("INSERT INTO credentials (login, password, metadata) VALUES (?, ?, ?) RETURNING id, login, password, metadata", dto.Login, dto.Password, dto.Metadata).Scan(&cred.ID, &cred.Login, &cred.Password, &cred.Metadata)
+	err := r.db.QueryRow("INSERT INTO credentials (id, login, password, metadata) VALUES (?, ?, ?, ?) RETURNING id, login, password, metadata", entity.ID, entity.Login, entity.Password, entity.Metadata).Scan(&cred.ID, &cred.Login, &cred.Password, &cred.Metadata)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create credentials: %w", err)

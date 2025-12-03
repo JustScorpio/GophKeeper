@@ -481,15 +481,15 @@ func (a *App) updateBinary(reader *bufio.Reader) {
 	option, _ := reader.ReadString('\n')
 	option = strings.TrimSpace(option)
 
-	var newMetadata string
-	var newData []byte
+	var metadata string
+	var data []byte
 
 	switch option {
 	case "1": // Только метаданные
 		fmt.Print("New metadata: ")
-		newMetadata, _ = reader.ReadString('\n')
-		newMetadata = strings.TrimSpace(newMetadata)
-		newData = existing.Data
+		metadata, _ = reader.ReadString('\n')
+		metadata = strings.TrimSpace(metadata)
+		data = existing.Data
 
 	case "2": // Только данные
 		fmt.Print("Enter file path with new binary data: ")
@@ -507,14 +507,14 @@ func (a *App) updateBinary(reader *bufio.Reader) {
 			return
 		}
 
-		newMetadata = existing.Metadata
-		newData = fileData
+		metadata = existing.Metadata
+		data = fileData
 		fmt.Printf("Loaded %d bytes from file\n", len(fileData))
 
 	case "3": // И метаданные, и данные
 		fmt.Print("New metadata: ")
-		newMetadata, _ = reader.ReadString('\n')
-		newMetadata = strings.TrimSpace(newMetadata)
+		metadata, _ = reader.ReadString('\n')
+		metadata = strings.TrimSpace(metadata)
 
 		fmt.Print("Enter file path with new binary data: ")
 		filePath, _ := reader.ReadString('\n')
@@ -531,7 +531,7 @@ func (a *App) updateBinary(reader *bufio.Reader) {
 			return
 		}
 
-		newData = fileData
+		data = fileData
 		fmt.Printf("Loaded %d bytes from file\n", len(fileData))
 
 	default:
@@ -540,14 +540,14 @@ func (a *App) updateBinary(reader *bufio.Reader) {
 	}
 
 	// Проверка размера данных
-	if len(newData) > 10*1024*1024 { // 10MB limit
+	if len(data) > 10*1024*1024 { // 10MB limit
 		fmt.Println("Error: File too large (max 10MB)")
 		return
 	}
 
 	updatedBinary := &entities.BinaryData{
-		Data:         newData,
-		SecureEntity: entities.SecureEntity{Metadata: newMetadata},
+		Data:         data,
+		SecureEntity: entities.SecureEntity{ID: id, Metadata: metadata},
 	}
 
 	fmt.Print("\nUpdating binary... ")
@@ -792,7 +792,7 @@ func (a *App) updateCard(reader *bufio.Reader) {
 		CardHolder:     cardHolder,
 		ExpirationDate: expirationDate,
 		CVV:            cvv,
-		SecureEntity:   entities.SecureEntity{Metadata: metadata},
+		SecureEntity:   entities.SecureEntity{ID: id, Metadata: metadata},
 	}
 
 	fmt.Print("\nUpdating card... ")
@@ -997,7 +997,7 @@ func (a *App) updateCredentials(reader *bufio.Reader) {
 	updatedCreds := &entities.Credentials{
 		Login:        login,
 		Password:     password,
-		SecureEntity: entities.SecureEntity{Metadata: metadata},
+		SecureEntity: entities.SecureEntity{ID: id, Metadata: metadata},
 	}
 
 	fmt.Print("\nUpdating credentials... ")
@@ -1194,15 +1194,15 @@ func (a *App) updateText(reader *bufio.Reader) {
 	option, _ := reader.ReadString('\n')
 	option = strings.TrimSpace(option)
 
-	var newMetadata string
-	var newContent string
+	var metadata string
+	var content string
 
 	switch option {
 	case "1": // Только метаданные
 		fmt.Print("New metadata: ")
-		newMetadata, _ = reader.ReadString('\n')
-		newMetadata = strings.TrimSpace(newMetadata)
-		newContent = existing.Data
+		metadata, _ = reader.ReadString('\n')
+		metadata = strings.TrimSpace(metadata)
+		content = existing.Data
 
 	case "2": // Только содержимое
 		fmt.Println("Enter new text content (end with empty line):")
@@ -1215,14 +1215,14 @@ func (a *App) updateText(reader *bufio.Reader) {
 			lines = append(lines, line)
 		}
 
-		newMetadata = existing.Metadata
-		newContent = strings.Join(lines, "")
-		fmt.Printf("New length: %d characters\n", len(newContent))
+		metadata = existing.Metadata
+		content = strings.Join(lines, "")
+		fmt.Printf("New length: %d characters\n", len(content))
 
 	case "3": // И метаданные, и содержимое
 		fmt.Print("New metadata: ")
-		newMetadata, _ = reader.ReadString('\n')
-		newMetadata = strings.TrimSpace(newMetadata)
+		metadata, _ = reader.ReadString('\n')
+		metadata = strings.TrimSpace(metadata)
 
 		fmt.Println("Enter new text content (end with empty line):")
 		var lines []string
@@ -1234,8 +1234,8 @@ func (a *App) updateText(reader *bufio.Reader) {
 			lines = append(lines, line)
 		}
 
-		newContent = strings.Join(lines, "")
-		fmt.Printf("New length: %d characters\n", len(newContent))
+		content = strings.Join(lines, "")
+		fmt.Printf("New length: %d characters\n", len(content))
 
 	default:
 		fmt.Println("Invalid option")
@@ -1243,14 +1243,14 @@ func (a *App) updateText(reader *bufio.Reader) {
 	}
 
 	// Проверка размера (если есть лимит)
-	if len(newContent) > 1*1024*1024 { // 1MB limit
+	if len(content) > 1*1024*1024 { // 1MB limit
 		fmt.Println("Error: Text too large (max 1MB)")
 		return
 	}
 
 	updatedText := &entities.TextData{
-		Data:         newContent,
-		SecureEntity: entities.SecureEntity{Metadata: newMetadata},
+		Data:         content,
+		SecureEntity: entities.SecureEntity{ID: id, Metadata: metadata},
 	}
 
 	fmt.Print("\nUpdating text... ")

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/JustScorpio/GophKeeper/frontend/internal/models/dtos"
+	"github.com/JustScorpio/GophKeeper/frontend/internal/models/entities"
 )
 
 type SyncService struct {
@@ -57,9 +57,9 @@ func (s *SyncService) syncBinaries(ctx context.Context) error {
 	}
 
 	for _, binary := range serverBinaries {
-		dto := &dtos.NewBinaryData{
-			Data:            binary.Data,
-			NewSecureEntity: dtos.NewSecureEntity{Metadata: binary.Metadata},
+		dto := &entities.BinaryData{
+			Data:         binary.Data,
+			SecureEntity: entities.SecureEntity{ID: binary.ID, Metadata: binary.Metadata},
 		}
 		if _, err := s.localStorage.CreateBinary(ctx, dto); err != nil {
 			return err
@@ -88,12 +88,12 @@ func (s *SyncService) syncCards(ctx context.Context) error {
 	}
 
 	for _, card := range serverCards {
-		dto := &dtos.NewCardInformation{
-			Number:          card.Number,
-			CardHolder:      card.CardHolder,
-			ExpirationDate:  card.ExpirationDate,
-			CVV:             card.CVV,
-			NewSecureEntity: dtos.NewSecureEntity{Metadata: card.Metadata},
+		dto := &entities.CardInformation{
+			Number:         card.Number,
+			CardHolder:     card.CardHolder,
+			ExpirationDate: card.ExpirationDate,
+			CVV:            card.CVV,
+			SecureEntity:   entities.SecureEntity{ID: card.ID, Metadata: card.Metadata},
 		}
 		if _, err := s.localStorage.CreateCard(ctx, dto); err != nil {
 			return err
@@ -122,10 +122,10 @@ func (s *SyncService) syncCredentials(ctx context.Context) error {
 	}
 
 	for _, cred := range serverCredentials {
-		dto := &dtos.NewCredentials{
-			Login:           cred.Login,
-			Password:        cred.Password,
-			NewSecureEntity: dtos.NewSecureEntity{Metadata: cred.Metadata},
+		dto := &entities.Credentials{
+			Login:        cred.Login,
+			Password:     cred.Password,
+			SecureEntity: entities.SecureEntity{ID: cred.ID, Metadata: cred.Metadata},
 		}
 		if _, err := s.localStorage.CreateCredentials(ctx, dto); err != nil {
 			return err
@@ -154,9 +154,9 @@ func (s *SyncService) syncTexts(ctx context.Context) error {
 	}
 
 	for _, text := range serverTexts {
-		dto := &dtos.NewTextData{
-			Data:            text.Data,
-			NewSecureEntity: dtos.NewSecureEntity{Metadata: text.Metadata},
+		dto := &entities.TextData{
+			Data:         text.Data,
+			SecureEntity: entities.SecureEntity{ID: text.ID, Metadata: text.Metadata},
 		}
 		if _, err := s.localStorage.CreateText(ctx, dto); err != nil {
 			return err

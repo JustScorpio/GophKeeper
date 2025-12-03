@@ -99,7 +99,7 @@ func (r *PgCredentialsRepo) Update(ctx context.Context, credentials *entities.Cr
 	userID := customcontext.GetUserID(ctx)
 
 	var updatedEntity entities.Credentials
-	err := r.db.QueryRow(ctx, "UPDATE Credentials SET login = $2, password = $3, metadata = $4, ownerid = $5 WHERE id = $1 AND ownerid = $6 RETURNING id, login, password, metadata, ownerid", credentials.ID, credentials.Login, credentials.Password, credentials.Metadata, credentials.OwnerID, userID).Scan(&updatedEntity.ID, &updatedEntity.Login, &updatedEntity.Password, &updatedEntity.Metadata, &updatedEntity.OwnerID)
+	err := r.db.QueryRow(ctx, "UPDATE Credentials SET login = $2, password = $3, metadata = $4 WHERE id = $1 AND ownerid = $5 RETURNING id, login, password, metadata, ownerid", credentials.ID, credentials.Login, credentials.Password, credentials.Metadata, userID).Scan(&updatedEntity.ID, &updatedEntity.Login, &updatedEntity.Password, &updatedEntity.Metadata, &updatedEntity.OwnerID)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to update credentials: %w", err)

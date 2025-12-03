@@ -98,7 +98,7 @@ func (r *PgTextsRepo) Update(ctx context.Context, text *entities.TextData) (*ent
 	userID := customcontext.GetUserID(ctx)
 
 	var updatedEntity entities.TextData
-	err := r.db.QueryRow(ctx, "UPDATE Texts SET data = $2, metadata = $3, ownerid = $4 WHERE id = $1 AND ownerid = $5 RETURNING id, data, metadata, ownerid", text.ID, text.Data, text.Metadata, text.OwnerID, userID).Scan(&updatedEntity.ID, &updatedEntity.Data, &updatedEntity.Metadata, &updatedEntity.OwnerID)
+	err := r.db.QueryRow(ctx, "UPDATE Texts SET data = $2, metadata = $3 WHERE id = $1 AND ownerid = $4 RETURNING id, data, metadata, ownerid", text.ID, text.Data, text.Metadata, userID).Scan(&updatedEntity.ID, &updatedEntity.Data, &updatedEntity.Metadata, &updatedEntity.OwnerID)
 
 	if err != nil {
 		return nil, err

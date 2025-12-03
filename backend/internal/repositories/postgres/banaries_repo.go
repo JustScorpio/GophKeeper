@@ -98,7 +98,7 @@ func (r *PgBinariesRepo) Update(ctx context.Context, binaryData *entities.Binary
 	userID := customcontext.GetUserID(ctx)
 
 	var updatedEntity entities.BinaryData
-	err := r.db.QueryRow(ctx, "UPDATE Binaries SET data = $2, metadata = $3, ownerid = $4 WHERE id = $1 AND ownerid = $5 RETURNING id, data, metadata, ownerid", binaryData.ID, binaryData.Data, binaryData.Metadata, binaryData.OwnerID, userID).Scan(&updatedEntity.ID, &updatedEntity.Data, &updatedEntity.Metadata, &updatedEntity.OwnerID)
+	err := r.db.QueryRow(ctx, "UPDATE Binaries SET data = $2, metadata = $3 WHERE id = $1 AND ownerid = $4 RETURNING id, data, metadata, ownerid", binaryData.ID, binaryData.Data, binaryData.Metadata, userID).Scan(&updatedEntity.ID, &updatedEntity.Data, &updatedEntity.Metadata, &updatedEntity.OwnerID)
 
 	if err != nil {
 		return nil, err

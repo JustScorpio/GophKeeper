@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/JustScorpio/GophKeeper/frontend/internal/models/dtos"
 	"github.com/JustScorpio/GophKeeper/frontend/internal/models/entities"
 )
 
@@ -75,9 +74,9 @@ func (r *BinariesRepo) Get(ctx context.Context, id string) (*entities.BinaryData
 }
 
 // Create - создать сущность
-func (r *BinariesRepo) Create(ctx context.Context, dto *dtos.NewBinaryData) (*entities.BinaryData, error) {
+func (r *BinariesRepo) Create(ctx context.Context, entity *entities.BinaryData) (*entities.BinaryData, error) {
 	var binary entities.BinaryData
-	err := r.db.QueryRow("INSERT INTO binaries (data, metadata) VALUES (?, ?) RETURNING id, data, metadata", dto.Data, dto.Metadata).Scan(&binary.ID, &binary.Data, &binary.Metadata)
+	err := r.db.QueryRow("INSERT INTO binaries (id, data, metadata) VALUES (?, ?, ?) RETURNING id, data, metadata", entity.ID, entity.Data, entity.Metadata).Scan(&binary.ID, &binary.Data, &binary.Metadata)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create entity: %w", err)
