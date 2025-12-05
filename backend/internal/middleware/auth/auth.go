@@ -25,8 +25,8 @@ type Claims struct {
 	Login string `json:"login"`
 }
 
-// newJWTString - создаёт токен с логином пользователя
-func newJWTString(login string) (string, error) {
+// NewJWTString - создаёт токен с логином пользователя
+func NewJWTString(login string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, Claims{
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(tokenLifeTime)),
@@ -45,7 +45,7 @@ func newJWTString(login string) (string, error) {
 
 // SetJWTCookie - устанавливает JWT куку
 func SetJWTCookie(w http.ResponseWriter, userID string) error {
-	newToken, err := newJWTString(userID)
+	newToken, err := NewJWTString(userID)
 	if err != nil {
 		return err
 	}

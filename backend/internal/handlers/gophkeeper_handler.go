@@ -354,12 +354,7 @@ func (h *GophkeeperHandler) DeleteBinary(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusGone)
-	json.NewEncoder(w).Encode(map[string]string{
-		"message": "Binary data deleted successfully",
-		"id":      id,
-	})
 }
 
 // CreateCard - создать данные банковской карты
