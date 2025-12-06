@@ -1,4 +1,4 @@
-package services
+package clients
 
 import (
 	"bytes"
@@ -16,7 +16,6 @@ import (
 type APIClient struct {
 	baseURL    string
 	httpClient *http.Client
-	jar        http.CookieJar
 }
 
 // NewAPIClient - создать клиент для взаимодействия с апи сервера
@@ -25,7 +24,6 @@ func NewAPIClient(baseURL string) *APIClient {
 	return &APIClient{
 		baseURL:    baseURL,
 		httpClient: &http.Client{Jar: jar},
-		jar:        jar,
 	}
 }
 

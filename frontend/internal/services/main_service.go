@@ -4,18 +4,19 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/JustScorpio/GophKeeper/frontend/internal/clients"
 	"github.com/JustScorpio/GophKeeper/frontend/internal/models/dtos"
 	"github.com/JustScorpio/GophKeeper/frontend/internal/models/entities"
 )
 
 type GophkeeperService struct {
-	apiClient    *APIClient
+	apiClient    clients.IAPIClient
 	localStorage *StorageService
 	syncService  *SyncService
 }
 
 func NewGophkeeperService(
-	apiClient *APIClient,
+	apiClient clients.IAPIClient,
 	localStorage *StorageService,
 	syncService *SyncService,
 ) *GophkeeperService {

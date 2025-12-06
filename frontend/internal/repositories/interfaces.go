@@ -12,7 +12,7 @@ type IRepository[Entity any] interface {
 	// Get - получить сущность по ИД
 	Get(ctx context.Context, id string) (*Entity, error)
 	// Create - создать сущность
-	Create(ctx context.Context, dto *Entity) (*Entity, error)
+	Create(ctx context.Context, entity *Entity) (*Entity, error)
 	// Update - изменить сущность
 	Update(ctx context.Context, entity *Entity) (*Entity, error)
 	// Delete - удалить сущность

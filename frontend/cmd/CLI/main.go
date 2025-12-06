@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/JustScorpio/GophKeeper/frontend/internal/clients"
 	"github.com/JustScorpio/GophKeeper/frontend/internal/models/dtos"
 	"github.com/JustScorpio/GophKeeper/frontend/internal/models/entities"
 	"github.com/JustScorpio/GophKeeper/frontend/internal/repositories/sqlite"
@@ -28,6 +29,7 @@ var (
 //go:embed config.json
 var configContent []byte
 
+// UNDONE: а менеджере паролей база должна быть запаролена
 // DBConfiguration - из confog.json
 type AppConfiguration struct {
 	DbPath     string `json:"db_path"`
@@ -36,7 +38,7 @@ type AppConfiguration struct {
 
 type App struct {
 	dbManager    *sqlite.DatabaseManager
-	apiClient    *services.APIClient
+	apiClient    clients.IAPIClient
 	localStorage *services.StorageService
 	syncService  *services.SyncService
 	appService   *services.GophkeeperService
@@ -85,7 +87,7 @@ func initializeApp() (*App, error) {
 	}
 
 	// Инициализация сервисов
-	apiClient := services.NewAPIClient(conf.ServerAddr)
+	apiClient := clients.NewAPIClient(conf.ServerAddr)
 
 	localStorage := services.NewStorageService(
 		dbManager.BinariesRepo,

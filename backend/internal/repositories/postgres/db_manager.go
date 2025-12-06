@@ -17,10 +17,19 @@ type connectionConfig struct {
 	SslMode  string
 }
 
-func NewDBConnection(connStr string) (*pgx.Conn, error) {
+type DatabaseManager struct {
+	DB              *pgx.Conn
+	BinariesRepo    *PgBinariesRepo
+	CardsRepo       *PgCardsRepo
+	CredentialsRepo *PgCredentialsRepo
+	TextsRepo       *PgTextsRepo
+	UsersRepo       *PgUsersRepo
+}
+
+func InitDatabase(connStr string) (*pgx.Conn, error) {
 	conf := extractConnectionConfig(connStr)
 
-	// Создание базы данных
+	// Подключение к базе данных postgres по умолчанию
 	defaultDBConnStr := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=%s", conf.Host, conf.User, conf.Password, "postgres", conf.Port, conf.SslMode)
 	defaultDB, err := pgx.Connect(context.Background(), defaultDBConnStr)
 	if err != nil {
@@ -28,7 +37,7 @@ func NewDBConnection(connStr string) (*pgx.Conn, error) {
 	}
 	defer defaultDB.Close(context.Background())
 
-	// Проверка и создание базы данных
+	// Проверка наличия базы данных
 	var dbExists bool
 	err = defaultDB.QueryRow(context.Background(), "SELECT EXISTS (SELECT 1 FROM pg_database WHERE datname = $1)", conf.DBName).Scan(&dbExists)
 	if err != nil {
@@ -55,6 +64,45 @@ func NewDBConnection(connStr string) (*pgx.Conn, error) {
 	}
 
 	return db, nil
+}
+
+func NewDatabaseManager(connStr string) (*DatabaseManager, error) {
+	db, err := InitDatabase(connStr)
+	if err != nil {
+		return nil, err
+	}
+
+	binariesRepo, err := NewPgBinariesRepo(db)
+	if err != nil {
+		return nil, err
+	}
+	cardsRepo, err := NewPgCardsRepo(db)
+	if err != nil {
+		return nil, err
+	}
+	credentialsRepo, err := NewPgCredentialsRepo(db)
+	if err != nil {
+		return nil, err
+	}
+	textsRepo, err := NewPgTextsRepo(db)
+	if err != nil {
+		return nil, err
+	}
+	usersRepo, err := NewPgUsersRepo(db)
+	if err != nil {
+		return nil, err
+	}
+
+	dbManager := DatabaseManager{
+		DB:              db,
+		BinariesRepo:    binariesRepo,
+		CardsRepo:       cardsRepo,
+		CredentialsRepo: credentialsRepo,
+		TextsRepo:       textsRepo,
+		UsersRepo:       usersRepo,
+	}
+
+	return &dbManager, nil
 }
 
 // Только чтобы не возиться с кучей параметров при запуске приложения

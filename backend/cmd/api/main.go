@@ -65,36 +65,15 @@ func run() error {
 
 	fmt.Println("DB connection string: ", databaseConnStr)
 
-	// Инициализация репозиториев
-	db, err := postgres.NewDBConnection(databaseConnStr)
+	//Инициализация репозиториев
+	dbManager, err := postgres.NewDatabaseManager(databaseConnStr)
 	if err != nil {
 		return err
 	}
-	defer db.Close(context.Background())
-
-	binariesRepo, err := postgres.NewPgBinariesRepo(db)
-	if err != nil {
-		return err
-	}
-	cardsRepo, err := postgres.NewPgCardsRepo(db)
-	if err != nil {
-		return err
-	}
-	credentialsRepo, err := postgres.NewPgCredentialsRepo(db)
-	if err != nil {
-		return err
-	}
-	textsRepo, err := postgres.NewPgTextsRepo(db)
-	if err != nil {
-		return err
-	}
-	usersRepo, err := postgres.NewPgUsersRepo(db)
-	if err != nil {
-		return err
-	}
+	defer dbManager.DB.Close(context.Background())
 
 	// Инициализация сервисов
-	storageService := services.NewStorageService(usersRepo, binariesRepo, cardsRepo, credentialsRepo, textsRepo)
+	storageService := services.NewStorageService(dbManager.UsersRepo, dbManager.BinariesRepo, dbManager.CardsRepo, dbManager.CredentialsRepo, dbManager.TextsRepo)
 
 	//При наличии переменной окружения или наличии флага - запускаем на HTTPS.
 	if _, hasEnv := os.LookupEnv("ENABLE_HTTPS"); hasEnv {

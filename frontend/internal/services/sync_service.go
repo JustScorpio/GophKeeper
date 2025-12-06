@@ -4,16 +4,17 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/JustScorpio/GophKeeper/frontend/internal/clients"
 	"github.com/JustScorpio/GophKeeper/frontend/internal/models/entities"
 )
 
 type SyncService struct {
-	apiClient    *APIClient
+	apiClient    clients.IAPIClient
 	localStorage *StorageService
 }
 
 // NewSyncService - создать сервис синхронизации данных
-func NewSyncService(apiClient *APIClient, localStorage *StorageService) *SyncService {
+func NewSyncService(apiClient clients.IAPIClient, localStorage *StorageService) *SyncService {
 	return &SyncService{
 		apiClient:    apiClient,
 		localStorage: localStorage,

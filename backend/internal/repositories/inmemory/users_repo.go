@@ -12,7 +12,6 @@ import (
 // InMemoryUsersRepo - репозиторий пользователей в памяти
 type InMemoryUsersRepo struct {
 	storage map[string]entities.User
-	idSeq   int64
 }
 
 // NewInMemoryUsersRepo - инициализация репозитория пользователей
@@ -20,12 +19,6 @@ func NewInMemoryUsersRepo() *InMemoryUsersRepo {
 	return &InMemoryUsersRepo{
 		storage: make(map[string]entities.User),
 	}
-}
-
-// generateID - генерация уникального ID
-func (r *InMemoryUsersRepo) generateID() string {
-	r.idSeq++
-	return fmt.Sprintf("%d", r.idSeq)
 }
 
 // GetAll - получить все сущности

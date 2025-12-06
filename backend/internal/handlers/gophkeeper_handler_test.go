@@ -52,34 +52,19 @@ var (
 	}
 )
 
-// InMemoryRepositories - структура с прямым доступом к репозиториям
-type InMemoryRepositories struct {
-	Users       *inmemory.InMemoryUsersRepo
-	Binaries    *inmemory.InMemoryBinariesRepo
-	Cards       *inmemory.InMemoryCardsRepo
-	Credentials *inmemory.InMemoryCredentialsRepo
-	Texts       *inmemory.InMemoryTextsRepo
-}
-
 // createTestHandler - создать тестовый хэндлер
-func createTestHandler() (*handlers.GophkeeperHandler, *InMemoryRepositories) {
+func createTestHandler() (*handlers.GophkeeperHandler, *inmemory.DatabaseManager) {
 	// Создаем тестовый хендлер
-	repos := &InMemoryRepositories{
-		Users:       inmemory.NewInMemoryUsersRepo(),
-		Binaries:    inmemory.NewInMemoryBinariesRepo(),
-		Cards:       inmemory.NewInMemoryCardsRepo(),
-		Credentials: inmemory.NewInMemoryCredentialsRepo(),
-		Texts:       inmemory.NewInMemoryTextsRepo(),
-	}
+	dbManager := inmemory.NewDatabaseManager()
 
 	service := services.NewStorageService(
-		repos.Users,
-		repos.Binaries,
-		repos.Cards,
-		repos.Credentials,
-		repos.Texts,
+		dbManager.Users,
+		dbManager.Binaries,
+		dbManager.Cards,
+		dbManager.Credentials,
+		dbManager.Texts,
 	)
-	return handlers.NewGophkeeperHandler(service), repos
+	return handlers.NewGophkeeperHandler(service), dbManager
 }
 
 // createTestRequest - создать тестовый запрос
@@ -104,7 +89,7 @@ func createTestRequest(method, path string, body interface{}, addAuth bool) *htt
 
 // TestRegisterAndLogin = ТЕСТЫ РЕГИСТРАЦИИ И АУТЕНТИФИКАЦИИ
 func TestRegisterAndLogin(t *testing.T) {
-	handler, repos := createTestHandler()
+	handler, dbManager := createTestHandler()
 
 	t.Run("Успешная регистрация пользователя", func(t *testing.T) {
 		req := createTestRequest("POST", "/register", testUser, false)
@@ -116,7 +101,7 @@ func TestRegisterAndLogin(t *testing.T) {
 		assert.Contains(t, w.Header().Get("Set-Cookie"), "jwt_token")
 
 		// Проверяем, что пользователь создался
-		user, err := repos.Users.Get(req.Context(), testUser.Login)
+		user, err := dbManager.Users.Get(req.Context(), testUser.Login)
 		require.NoError(t, err)
 		assert.NotNil(t, user)
 		assert.Equal(t, testUser.Login, user.Login)
@@ -156,11 +141,11 @@ func TestRegisterAndLogin(t *testing.T) {
 
 // TestBinaryDataCRUD - ТЕСТЫ БИНАРНЫХ ДАННЫХ
 func TestBinaryDataCRUD(t *testing.T) {
-	handler, repos := createTestHandler()
+	handler, dbManager := createTestHandler()
 
 	// Создаем пользователя для тестов
 	ctx := context.Background()
-	_, err := repos.Users.Create(ctx, &testUser)
+	_, err := dbManager.Users.Create(ctx, &testUser)
 	require.NoError(t, err)
 
 	t.Run("Создание бинарных данных", func(t *testing.T) {
@@ -183,7 +168,7 @@ func TestBinaryDataCRUD(t *testing.T) {
 	t.Run("Получение бинарных данных по ID", func(t *testing.T) {
 		// Сначала создаем запись
 		ctxWithUser := customcontext.WithUserID(context.Background(), "testuser")
-		binary, err := repos.Binaries.Create(ctxWithUser, &testBinary)
+		binary, err := dbManager.Binaries.Create(ctxWithUser, &testBinary)
 		require.NoError(t, err)
 
 		req := httptest.NewRequest("GET", fmt.Sprintf("/binaries/%s", binary.ID), nil)
@@ -224,7 +209,7 @@ func TestBinaryDataCRUD(t *testing.T) {
 	t.Run("Обновление бинарных данных", func(t *testing.T) {
 		// Сначала создаем запись
 		ctxWithUser := customcontext.WithUserID(context.Background(), "testuser")
-		binary, err := repos.Binaries.Create(ctxWithUser, &testBinary)
+		binary, err := dbManager.Binaries.Create(ctxWithUser, &testBinary)
 		require.NoError(t, err)
 
 		// Обновляем
@@ -255,7 +240,7 @@ func TestBinaryDataCRUD(t *testing.T) {
 	t.Run("Удаление бинарных данных", func(t *testing.T) {
 		// Сначала создаем запись
 		ctxWithUser := customcontext.WithUserID(context.Background(), "testuser")
-		binary, err := repos.Binaries.Create(ctxWithUser, &testBinary)
+		binary, err := dbManager.Binaries.Create(ctxWithUser, &testBinary)
 		require.NoError(t, err)
 
 		req := httptest.NewRequest("DELETE", fmt.Sprintf("/binaries/%s", binary.ID), nil)
@@ -273,7 +258,7 @@ func TestBinaryDataCRUD(t *testing.T) {
 		assert.Equal(t, http.StatusGone, w.Code)
 
 		// Проверяем, что данные удалились
-		deletedBinary, err := repos.Binaries.Get(ctxWithUser, binary.ID)
+		deletedBinary, err := dbManager.Binaries.Get(ctxWithUser, binary.ID)
 		require.NoError(t, err)
 		assert.Nil(t, deletedBinary)
 	})
@@ -281,11 +266,11 @@ func TestBinaryDataCRUD(t *testing.T) {
 
 // TestCardDataCRUD - ТЕСТЫ БАНКОВСКИХ КАРТ
 func TestCardDataCRUD(t *testing.T) {
-	handler, repos := createTestHandler()
+	handler, dbManager := createTestHandler()
 
 	// Создаем пользователя для тестов
 	ctx := context.Background()
-	_, err := repos.Users.Create(ctx, &testUser)
+	_, err := dbManager.Users.Create(ctx, &testUser)
 	require.NoError(t, err)
 
 	t.Run("Создание данных банковской карты", func(t *testing.T) {
@@ -310,7 +295,7 @@ func TestCardDataCRUD(t *testing.T) {
 	t.Run("Получение данных карты по ID", func(t *testing.T) {
 		// Сначала создаем запись
 		ctxWithUser := customcontext.WithUserID(context.Background(), "testuser")
-		card, err := repos.Cards.Create(ctxWithUser, &testCard)
+		card, err := dbManager.Cards.Create(ctxWithUser, &testCard)
 		require.NoError(t, err)
 
 		req := httptest.NewRequest("GET", fmt.Sprintf("/cards/%s", card.ID), nil)
@@ -340,12 +325,12 @@ func TestCardDataCRUD(t *testing.T) {
 			Login:    "user2",
 			Password: "password2",
 		}
-		_, err := repos.Users.Create(context.Background(), &user2)
+		_, err := dbManager.Users.Create(context.Background(), &user2)
 		require.NoError(t, err)
 
 		// user1 создает карту
 		ctxUser1 := customcontext.WithUserID(context.Background(), "testuser")
-		card, err := repos.Cards.Create(ctxUser1, &testCard)
+		card, err := dbManager.Cards.Create(ctxUser1, &testCard)
 		require.NoError(t, err)
 
 		// user2 пытается получить карту user1
@@ -368,11 +353,11 @@ func TestCardDataCRUD(t *testing.T) {
 
 // TestCredentialsCRUD - ТЕСТЫ УЧЕТНЫХ ДАННЫХ
 func TestCredentialsCRUD(t *testing.T) {
-	handler, repos := createTestHandler()
+	handler, dbManager := createTestHandler()
 
 	// Создаем пользователя для тестов
 	ctx := context.Background()
-	_, err := repos.Users.Create(ctx, &testUser)
+	_, err := dbManager.Users.Create(ctx, &testUser)
 	require.NoError(t, err)
 
 	t.Run("Создание учетных данных", func(t *testing.T) {
@@ -415,11 +400,11 @@ func TestCredentialsCRUD(t *testing.T) {
 
 // TestTextDataCRUD - ТЕСТЫ ТЕКСТОВЫХ ДАННЫХ
 func TestTextDataCRUD(t *testing.T) {
-	handler, repos := createTestHandler()
+	handler, dbManager := createTestHandler()
 
 	// Создаем пользователя для тестов
 	ctx := context.Background()
-	_, err := repos.Users.Create(ctx, &testUser)
+	_, err := dbManager.Users.Create(ctx, &testUser)
 	require.NoError(t, err)
 
 	t.Run("Создание текстовых данных", func(t *testing.T) {
@@ -442,7 +427,7 @@ func TestTextDataCRUD(t *testing.T) {
 	t.Run("Удаление текстовых данных", func(t *testing.T) {
 		// Сначала создаем запись
 		ctxWithUser := customcontext.WithUserID(context.Background(), "testuser")
-		text, err := repos.Texts.Create(ctxWithUser, &testText)
+		text, err := dbManager.Texts.Create(ctxWithUser, &testText)
 		require.NoError(t, err)
 
 		req := httptest.NewRequest("DELETE", fmt.Sprintf("/texts/%s", text.ID), nil)
@@ -460,7 +445,7 @@ func TestTextDataCRUD(t *testing.T) {
 		assert.Equal(t, http.StatusGone, w.Code)
 
 		// Проверяем, что данные удалились
-		deletedText, err := repos.Texts.Get(ctxWithUser, text.ID)
+		deletedText, err := dbManager.Texts.Get(ctxWithUser, text.ID)
 		require.NoError(t, err)
 		assert.Nil(t, deletedText)
 	})
@@ -514,7 +499,7 @@ func TestUnauthorizedAccess(t *testing.T) {
 
 // TestCompleteUserScenario - ПОЛНЫЙ ЦИКЛ ОПЕРАЦИЙ
 func TestCompleteUserScenario(t *testing.T) {
-	handler, repos := createTestHandler()
+	handler, dbManager := createTestHandler()
 
 	t.Run("Полный сценарий работы пользователя", func(t *testing.T) {
 		// 1. Регистрация нового пользователя
@@ -532,19 +517,19 @@ func TestCompleteUserScenario(t *testing.T) {
 		ctxWithUser := customcontext.WithUserID(context.Background(), "newuser")
 
 		// Бинарные данные
-		binary, err := repos.Binaries.Create(ctxWithUser, &testBinary)
+		binary, err := dbManager.Binaries.Create(ctxWithUser, &testBinary)
 		require.NoError(t, err)
 
 		// Банковская карта
-		card, err := repos.Cards.Create(ctxWithUser, &testCard)
+		card, err := dbManager.Cards.Create(ctxWithUser, &testCard)
 		require.NoError(t, err)
 
 		// Учетные данные
-		cred, err := repos.Credentials.Create(ctxWithUser, &testCredentials)
+		cred, err := dbManager.Credentials.Create(ctxWithUser, &testCredentials)
 		require.NoError(t, err)
 
 		// Текстовые данные
-		text, err := repos.Texts.Create(ctxWithUser, &testText)
+		text, err := dbManager.Texts.Create(ctxWithUser, &testText)
 		require.NoError(t, err)
 
 		// 3. Проверка, что данные созданы
@@ -557,36 +542,36 @@ func TestCompleteUserScenario(t *testing.T) {
 		anotherUserCtx := customcontext.WithUserID(context.Background(), "anotheruser")
 
 		// Пытаемся получить данные нового пользователя
-		anotherBinary, err := repos.Binaries.Get(anotherUserCtx, binary.ID)
+		anotherBinary, err := dbManager.Binaries.Get(anotherUserCtx, binary.ID)
 		require.NoError(t, err)
 		assert.Nil(t, anotherBinary)
 
-		anotherCard, err := repos.Cards.Get(anotherUserCtx, card.ID)
+		anotherCard, err := dbManager.Cards.Get(anotherUserCtx, card.ID)
 		require.NoError(t, err)
 		assert.Nil(t, anotherCard)
 
 		// 5. Удаление данных
-		err = repos.Binaries.Delete(ctxWithUser, binary.ID)
+		err = dbManager.Binaries.Delete(ctxWithUser, binary.ID)
 		require.NoError(t, err)
 
-		err = repos.Cards.Delete(ctxWithUser, card.ID)
+		err = dbManager.Cards.Delete(ctxWithUser, card.ID)
 		require.NoError(t, err)
 
 		// 6. Проверка, что данные удалены
-		deletedBinary, err := repos.Binaries.Get(ctxWithUser, binary.ID)
+		deletedBinary, err := dbManager.Binaries.Get(ctxWithUser, binary.ID)
 		require.NoError(t, err)
 		assert.Nil(t, deletedBinary)
 
-		deletedCard, err := repos.Cards.Get(ctxWithUser, card.ID)
+		deletedCard, err := dbManager.Cards.Get(ctxWithUser, card.ID)
 		require.NoError(t, err)
 		assert.Nil(t, deletedCard)
 
 		// 7. Остальные данные остались
-		remainingCred, err := repos.Credentials.Get(ctxWithUser, cred.ID)
+		remainingCred, err := dbManager.Credentials.Get(ctxWithUser, cred.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, remainingCred)
 
-		remainingText, err := repos.Texts.Get(ctxWithUser, text.ID)
+		remainingText, err := dbManager.Texts.Get(ctxWithUser, text.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, remainingText)
 	})
@@ -594,11 +579,11 @@ func TestCompleteUserScenario(t *testing.T) {
 
 // TestErrorScenarios - ТЕСТЫ ОШИБОЧНЫХ СЦЕНАРИЕВ
 func TestErrorScenarios(t *testing.T) {
-	handler, repos := createTestHandler()
+	handler, dbManager := createTestHandler()
 
 	// Создаем пользователя для тестов
 	ctx := context.Background()
-	_, err := repos.Users.Create(ctx, &testUser)
+	_, err := dbManager.Users.Create(ctx, &testUser)
 	require.NoError(t, err)
 
 	t.Run("Получение несуществующих данных", func(t *testing.T) {
@@ -641,7 +626,7 @@ func TestErrorScenarios(t *testing.T) {
 
 // TestMultiUserEnvironment - ТЕСТЫ МНОГОПОЛЬЗОВАТЕЛЬСКОЙ СРЕДЫ
 func TestMultiUserEnvironment(t *testing.T) {
-	handler, repos := createTestHandler()
+	handler, dbManager := createTestHandler()
 
 	t.Run("Несколько пользователей создают и получают свои данные через хендлер", func(t *testing.T) {
 		users := []struct {
@@ -662,7 +647,7 @@ func TestMultiUserEnvironment(t *testing.T) {
 				Login:    u.login,
 				Password: "password",
 			}
-			_, err := repos.Users.Create(context.Background(), &userDTO)
+			_, err := dbManager.Users.Create(context.Background(), &userDTO)
 			require.NoError(t, err)
 		}
 
