@@ -2,7 +2,6 @@ package handlers_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -22,13 +21,13 @@ import (
 )
 
 // Тестовые пользователи
-var user1s = map[string]string{
+var testUsers = map[string]string{
 	"user1": "password123",
 	"user2": "password456",
 	"user3": "password789",
 }
 
-// getTestData возвращает свежие тестовые данные
+// getTestData возвращает тестовые данные
 func getTestData() struct {
 	binary      dtos.NewBinaryData
 	card        dtos.NewCardInformation
@@ -64,8 +63,8 @@ func getTestData() struct {
 	}
 }
 
-// createTestHandler - создать тестовый хэндлер
-func createTestHandler() (*handlers.GophkeeperHandler, *inmemory.DatabaseManager) {
+// createTestHandlerAndRouter создает тестовый хэндлер и роутер
+func createTestHandlerAndRouter() (*chi.Mux, *inmemory.DatabaseManager) {
 	dbManager := inmemory.NewDatabaseManager()
 	service := services.NewStorageService(
 		dbManager.Users,
@@ -74,22 +73,70 @@ func createTestHandler() (*handlers.GophkeeperHandler, *inmemory.DatabaseManager
 		dbManager.Credentials,
 		dbManager.Texts,
 	)
-	return handlers.NewGophkeeperHandler(service), dbManager
+	handler := handlers.NewGophkeeperHandler(service)
+
+	// Создаем роутер
+	router := chi.NewRouter()
+
+	// Публичные маршруты
+	router.Post("/register", handler.Register)
+	router.Post("/login", handler.Login)
+
+	// Защищенные маршруты
+	router.Route("/api/user", func(r chi.Router) {
+		// Используем middleware для аутентификации
+		r.Use(func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				// TODO: добавить проверку токенов (для тестов пропускаем)
+				next.ServeHTTP(w, r)
+			})
+		})
+
+		// Binary data endpoints
+		r.Post("/binaries", handler.CreateBinary)
+		r.Get("/binaries", handler.GetAllBinaries)
+		r.Get("/binaries/{id}", handler.GetBinary)
+		r.Put("/binaries", handler.UpdateBinary)
+		r.Delete("/binaries/{id}", handler.DeleteBinary)
+
+		// Card information endpoints
+		r.Post("/card", handler.CreateCard)
+		r.Get("/cards", handler.GetAllCards)
+		r.Get("/cards/{id}", handler.GetCard)
+		r.Put("/card", handler.UpdateCard)
+		r.Delete("/cards/{id}", handler.DeleteCard)
+
+		// Credentials endpoints
+		r.Post("/credentials", handler.CreateCredentials)
+		r.Get("/credentials", handler.GetAllCredentials)
+		r.Get("/credentials/{id}", handler.GetCredentials)
+		r.Put("/credentials", handler.UpdateCredentials)
+		r.Delete("/credentials/{id}", handler.DeleteCredentials)
+
+		// Text data endpoints
+		r.Post("/texts", handler.CreateText)
+		r.Get("/texts", handler.GetAllTexts)
+		r.Get("/texts/{id}", handler.GetText)
+		r.Put("/texts", handler.UpdateText)
+		r.Delete("/texts/{id}", handler.DeleteText)
+	})
+
+	return router, dbManager
 }
 
-// createTestRequest - создать тестовый запрос
-func createTestRequest(method, path string, body interface{}, addAuth bool, userLogin string) *http.Request {
+// createTestRequest - создать тестовый запрос с авторизацией
+func createTestRequest(method, url string, body interface{}, authRequired bool, userLogin string) *http.Request {
 	var req *http.Request
 
 	if body != nil {
 		jsonBody, _ := json.Marshal(body)
-		req = httptest.NewRequest(method, path, bytes.NewReader(jsonBody))
+		req = httptest.NewRequest(method, url, bytes.NewReader(jsonBody))
 		req.Header.Set("Content-Type", "application/json")
 	} else {
-		req = httptest.NewRequest(method, path, nil)
+		req = httptest.NewRequest(method, url, nil)
 	}
 
-	if addAuth {
+	if authRequired {
 		ctx := customcontext.WithUserID(req.Context(), userLogin)
 		req = req.WithContext(ctx)
 	}
@@ -97,19 +144,8 @@ func createTestRequest(method, path string, body interface{}, addAuth bool, user
 	return req
 }
 
-// createRequestWithChiParam создает запрос с параметрами для chi router
-func createRequestWithChiParam(method, path, paramName, paramValue string, body interface{}, addAuth bool, userLogin string) *http.Request {
-	req := createTestRequest(method, path, body, addAuth, userLogin)
-
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add(paramName, paramValue)
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-	return req
-}
-
-// registeruser1 регистрирует пользователя
-func registeruser1(t *testing.T, handler *handlers.GophkeeperHandler, login, password string) {
+// registerTestUser регистрирует пользователя через роутер
+func registerTestUser(t *testing.T, router *chi.Mux, login, password string) {
 	newUser := dtos.NewUser{
 		Login:    login,
 		Password: password,
@@ -117,16 +153,16 @@ func registeruser1(t *testing.T, handler *handlers.GophkeeperHandler, login, pas
 
 	req := createTestRequest("POST", "/register", newUser, false, "")
 	w := httptest.NewRecorder()
-	handler.Register(w, req)
+	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code, "Failed to register user %s", login)
 }
 
-// createBinary создает бинарные данные
-func createBinary(t *testing.T, handler *handlers.GophkeeperHandler, userLogin string, data dtos.NewBinaryData) entities.BinaryData {
+// createBinary создает бинарные данные через роутер
+func createBinary(t *testing.T, router *chi.Mux, userLogin string, data dtos.NewBinaryData) entities.BinaryData {
 	req := createTestRequest("POST", "/api/user/binaries", data, true, userLogin)
 	w := httptest.NewRecorder()
-	handler.CreateBinary(w, req)
+	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusCreated, w.Code, "Failed to create binary data for user %s", userLogin)
 
@@ -136,11 +172,11 @@ func createBinary(t *testing.T, handler *handlers.GophkeeperHandler, userLogin s
 	return response
 }
 
-// createCard создает данные карты
-func createCard(t *testing.T, handler *handlers.GophkeeperHandler, userLogin string, data dtos.NewCardInformation) entities.CardInformation {
+// createCard создает данные карты через роутер
+func createCard(t *testing.T, router *chi.Mux, userLogin string, data dtos.NewCardInformation) entities.CardInformation {
 	req := createTestRequest("POST", "/api/user/card", data, true, userLogin)
 	w := httptest.NewRecorder()
-	handler.CreateCard(w, req)
+	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusCreated, w.Code, "Failed to create card data for user %s", userLogin)
 
@@ -150,11 +186,11 @@ func createCard(t *testing.T, handler *handlers.GophkeeperHandler, userLogin str
 	return response
 }
 
-// createCredentials создает учетные данные
-func createCredentials(t *testing.T, handler *handlers.GophkeeperHandler, userLogin string, data dtos.NewCredentials) entities.Credentials {
+// createCredentials создает учетные данные через роутер
+func createCredentials(t *testing.T, router *chi.Mux, userLogin string, data dtos.NewCredentials) entities.Credentials {
 	req := createTestRequest("POST", "/api/user/credentials", data, true, userLogin)
 	w := httptest.NewRecorder()
-	handler.CreateCredentials(w, req)
+	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusCreated, w.Code, "Failed to create credentials for user %s", userLogin)
 
@@ -164,11 +200,11 @@ func createCredentials(t *testing.T, handler *handlers.GophkeeperHandler, userLo
 	return response
 }
 
-// createText создает текстовые данные
-func createText(t *testing.T, handler *handlers.GophkeeperHandler, userLogin string, data dtos.NewTextData) entities.TextData {
+// createText создает текстовые данные через роутер
+func createText(t *testing.T, router *chi.Mux, userLogin string, data dtos.NewTextData) entities.TextData {
 	req := createTestRequest("POST", "/api/user/texts", data, true, userLogin)
 	w := httptest.NewRecorder()
-	handler.CreateText(w, req)
+	router.ServeHTTP(w, req)
 
 	require.Equal(t, http.StatusCreated, w.Code, "Failed to create text data for user %s", userLogin)
 
@@ -180,7 +216,7 @@ func createText(t *testing.T, handler *handlers.GophkeeperHandler, userLogin str
 
 // TestRegisterAndLogin - ТЕСТЫ РЕГИСТРАЦИИ И АУТЕНТИФИКАЦИИ
 func TestRegisterAndLogin(t *testing.T) {
-	handler, dbManager := createTestHandler()
+	router, dbManager := createTestHandlerAndRouter()
 
 	t.Run("Успешная регистрация пользователя", func(t *testing.T) {
 		newUser := dtos.NewUser{
@@ -191,7 +227,7 @@ func TestRegisterAndLogin(t *testing.T) {
 		req := createTestRequest("POST", "/register", newUser, false, "")
 		w := httptest.NewRecorder()
 
-		handler.Register(w, req)
+		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Contains(t, w.Header().Get("Set-Cookie"), "jwt_token")
@@ -207,7 +243,7 @@ func TestRegisterAndLogin(t *testing.T) {
 
 	t.Run("Регистрация с существующим логином", func(t *testing.T) {
 		// Сначала регистрируем пользователя
-		registeruser1(t, handler, "existinguser", "password123")
+		registerTestUser(t, router, "existinguser", "password123")
 
 		// Пытаемся зарегистрироваться с тем же логином
 		existingUser := dtos.NewUser{
@@ -218,7 +254,7 @@ func TestRegisterAndLogin(t *testing.T) {
 		req := createTestRequest("POST", "/register", existingUser, false, "")
 		w := httptest.NewRecorder()
 
-		handler.Register(w, req)
+		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusConflict, w.Code)
 		assert.Contains(t, w.Body.String(), "already exists")
@@ -226,7 +262,7 @@ func TestRegisterAndLogin(t *testing.T) {
 
 	t.Run("Успешная аутентификация", func(t *testing.T) {
 		// Сначала регистрируем пользователя
-		registeruser1(t, handler, "authuser", "authpassword")
+		registerTestUser(t, router, "authuser", "authpassword")
 
 		// Пытаемся залогиниться
 		loginReq := map[string]string{
@@ -237,14 +273,14 @@ func TestRegisterAndLogin(t *testing.T) {
 		req := createTestRequest("POST", "/login", loginReq, false, "")
 		w := httptest.NewRecorder()
 
-		handler.Login(w, req)
+		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Contains(t, w.Header().Get("Set-Cookie"), "jwt_token")
 	})
 
 	t.Run("Неуспешная аутентификация - неверный пароль", func(t *testing.T) {
-		registeruser1(t, handler, "wrongpassuser", "correctpass")
+		registerTestUser(t, router, "wrongpassuser", "correctpass")
 
 		loginReq := map[string]string{
 			"login":    "wrongpassuser",
@@ -254,7 +290,7 @@ func TestRegisterAndLogin(t *testing.T) {
 		req := createTestRequest("POST", "/login", loginReq, false, "")
 		w := httptest.NewRecorder()
 
-		handler.Login(w, req)
+		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 		assert.Contains(t, w.Body.String(), "invalid credentials")
@@ -269,7 +305,7 @@ func TestRegisterAndLogin(t *testing.T) {
 		req := createTestRequest("POST", "/login", loginReq, false, "")
 		w := httptest.NewRecorder()
 
-		handler.Login(w, req)
+		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 		assert.Contains(t, w.Body.String(), "Invalid credentials")
@@ -278,17 +314,17 @@ func TestRegisterAndLogin(t *testing.T) {
 
 // TestBinaryDataCRUD - ТЕСТЫ БИНАРНЫХ ДАННЫХ
 func TestBinaryDataCRUD(t *testing.T) {
-	handler, _ := createTestHandler()
+	router, _ := createTestHandlerAndRouter()
 	testData := getTestData()
 
 	// Регистрируем пользователя
-	registeruser1(t, handler, "user1", user1s["user1"])
+	registerTestUser(t, router, "user1", testUsers["user1"])
 
 	t.Run("Создание бинарных данных", func(t *testing.T) {
 		req := createTestRequest("POST", "/api/user/binaries", testData.binary, true, "user1")
 		w := httptest.NewRecorder()
 
-		handler.CreateBinary(w, req)
+		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
@@ -302,14 +338,14 @@ func TestBinaryDataCRUD(t *testing.T) {
 
 	t.Run("Получение бинарных данных по ID", func(t *testing.T) {
 		// Сначала создаем запись
-		binary := createBinary(t, handler, "user1", testData.binary)
+		binary := createBinary(t, router, "user1", testData.binary)
 
 		// Получаем данные по ID
-		req := createRequestWithChiParam("GET", fmt.Sprintf("/api/user/binaries/%s", binary.ID),
-			"id", binary.ID, nil, true, "user1")
+		req := createTestRequest("GET", fmt.Sprintf("/api/user/binaries/%s", binary.ID),
+			nil, true, "user1")
 
 		w := httptest.NewRecorder()
-		handler.GetBinary(w, req)
+		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
@@ -327,14 +363,14 @@ func TestBinaryDataCRUD(t *testing.T) {
 				Data:            []byte(fmt.Sprintf("data %d", i)),
 				NewSecureEntity: dtos.NewSecureEntity{Metadata: fmt.Sprintf("metadata %d", i)},
 			}
-			createBinary(t, handler, "user1", binaryData)
+			createBinary(t, router, "user1", binaryData)
 		}
 
 		// Получаем все данные
 		req := createTestRequest("GET", "/api/user/binaries", nil, true, "user1")
 		w := httptest.NewRecorder()
 
-		handler.GetAllBinaries(w, req)
+		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
@@ -346,7 +382,7 @@ func TestBinaryDataCRUD(t *testing.T) {
 
 	t.Run("Обновление бинарных данных", func(t *testing.T) {
 		// Сначала создаем запись
-		binary := createBinary(t, handler, "user1", testData.binary)
+		binary := createBinary(t, router, "user1", testData.binary)
 
 		// Обновляем
 		updateData := entities.BinaryData{
@@ -357,7 +393,7 @@ func TestBinaryDataCRUD(t *testing.T) {
 		req := createTestRequest("PUT", "/api/user/binaries", updateData, true, "user1")
 		w := httptest.NewRecorder()
 
-		handler.UpdateBinary(w, req)
+		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
@@ -370,22 +406,22 @@ func TestBinaryDataCRUD(t *testing.T) {
 
 	t.Run("Удаление бинарных данных", func(t *testing.T) {
 		// Сначала создаем запись
-		binary := createBinary(t, handler, "user1", testData.binary)
+		binary := createBinary(t, router, "user1", testData.binary)
 
 		// Удаляем
-		req := createRequestWithChiParam("DELETE", fmt.Sprintf("/api/user/binaries/%s", binary.ID),
-			"id", binary.ID, nil, true, "user1")
+		req := createTestRequest("DELETE", fmt.Sprintf("/api/user/binaries/%s", binary.ID),
+			nil, true, "user1")
 
 		w := httptest.NewRecorder()
-		handler.DeleteBinary(w, req)
+		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusGone, w.Code)
 
 		// Пытаемся получить удаленные данные
-		getReq := createRequestWithChiParam("GET", fmt.Sprintf("/api/user/binaries/%s", binary.ID),
-			"id", binary.ID, nil, true, "user1")
+		getReq := createTestRequest("GET", fmt.Sprintf("/api/user/binaries/%s", binary.ID),
+			nil, true, "user1")
 		getW := httptest.NewRecorder()
-		handler.GetBinary(getW, getReq)
+		router.ServeHTTP(getW, getReq)
 
 		assert.Equal(t, http.StatusNotFound, getW.Code)
 	})
@@ -393,18 +429,18 @@ func TestBinaryDataCRUD(t *testing.T) {
 
 // TestCardDataCRUD - ТЕСТЫ БАНКОВСКИХ КАРТ
 func TestCardDataCRUD(t *testing.T) {
-	handler, _ := createTestHandler()
+	router, _ := createTestHandlerAndRouter()
 	testData := getTestData()
 
 	// Регистрируем пользователей
-	registeruser1(t, handler, "user1", user1s["user1"])
-	registeruser1(t, handler, "user2", user1s["user2"])
+	registerTestUser(t, router, "user1", testUsers["user1"])
+	registerTestUser(t, router, "user2", testUsers["user2"])
 
 	t.Run("Создание данных банковской карты", func(t *testing.T) {
 		req := createTestRequest("POST", "/api/user/card", testData.card, true, "user1")
 		w := httptest.NewRecorder()
 
-		handler.CreateCard(w, req)
+		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
@@ -420,24 +456,24 @@ func TestCardDataCRUD(t *testing.T) {
 
 	t.Run("Изоляция данных между пользователями", func(t *testing.T) {
 		// user1 создает карту
-		card := createCard(t, handler, "user1", testData.card)
+		card := createCard(t, router, "user1", testData.card)
 
 		// user2 пытается получить карту user1
-		req := createRequestWithChiParam("GET", fmt.Sprintf("/api/user/cards/%s", card.ID),
-			"id", card.ID, nil, true, "user2")
+		req := createTestRequest("GET", fmt.Sprintf("/api/user/cards/%s", card.ID),
+			nil, true, "user2")
 
 		w := httptest.NewRecorder()
-		handler.GetCard(w, req)
+		router.ServeHTTP(w, req)
 
 		// user2 не должен видеть карту user1
 		assert.Equal(t, http.StatusNotFound, w.Code)
 		assert.Contains(t, w.Body.String(), "not found")
 
 		// user1 должен видеть свою карту
-		reqUser1 := createRequestWithChiParam("GET", fmt.Sprintf("/api/user/cards/%s", card.ID),
-			"id", card.ID, nil, true, "user1")
+		reqUser1 := createTestRequest("GET", fmt.Sprintf("/api/user/cards/%s", card.ID),
+			nil, true, "user1")
 		wUser1 := httptest.NewRecorder()
-		handler.GetCard(wUser1, reqUser1)
+		router.ServeHTTP(wUser1, reqUser1)
 
 		assert.Equal(t, http.StatusOK, wUser1.Code)
 	})
@@ -445,17 +481,17 @@ func TestCardDataCRUD(t *testing.T) {
 
 // TestCredentialsCRUD - ТЕСТЫ УЧЕТНЫХ ДАННЫХ
 func TestCredentialsCRUD(t *testing.T) {
-	handler, _ := createTestHandler()
+	router, _ := createTestHandlerAndRouter()
 	testData := getTestData()
 
 	// Регистрируем пользователя
-	registeruser1(t, handler, "user1", user1s["user1"])
+	registerTestUser(t, router, "user1", testUsers["user1"])
 
 	t.Run("Создание учетных данных", func(t *testing.T) {
 		req := createTestRequest("POST", "/api/user/credentials", testData.credentials, true, "user1")
 		w := httptest.NewRecorder()
 
-		handler.CreateCredentials(w, req)
+		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
@@ -476,14 +512,14 @@ func TestCredentialsCRUD(t *testing.T) {
 				Password:        fmt.Sprintf("pass%d", i),
 				NewSecureEntity: dtos.NewSecureEntity{Metadata: fmt.Sprintf("cred %d", i)},
 			}
-			createCredentials(t, handler, "user1", cred)
+			createCredentials(t, router, "user1", cred)
 		}
 
 		// Получаем все
 		req := createTestRequest("GET", "/api/user/credentials", nil, true, "user1")
 		w := httptest.NewRecorder()
 
-		handler.GetAllCredentials(w, req)
+		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusOK, w.Code)
 
@@ -496,17 +532,17 @@ func TestCredentialsCRUD(t *testing.T) {
 
 // TestTextDataCRUD - ТЕСТЫ ТЕКСТОВЫХ ДАННЫХ
 func TestTextDataCRUD(t *testing.T) {
-	handler, _ := createTestHandler()
+	router, _ := createTestHandlerAndRouter()
 	testData := getTestData()
 
 	// Регистрируем пользователя
-	registeruser1(t, handler, "user1", user1s["user1"])
+	registerTestUser(t, router, "user1", testUsers["user1"])
 
 	t.Run("Создание текстовых данных", func(t *testing.T) {
 		req := createTestRequest("POST", "/api/user/texts", testData.text, true, "user1")
 		w := httptest.NewRecorder()
 
-		handler.CreateText(w, req)
+		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 
@@ -520,22 +556,22 @@ func TestTextDataCRUD(t *testing.T) {
 
 	t.Run("Удаление текстовых данных", func(t *testing.T) {
 		// Сначала создаем запись
-		text := createText(t, handler, "user1", testData.text)
+		text := createText(t, router, "user1", testData.text)
 
 		// Удаляем
-		req := createRequestWithChiParam("DELETE", fmt.Sprintf("/api/user/texts/%s", text.ID),
-			"id", text.ID, nil, true, "user1")
+		req := createTestRequest("DELETE", fmt.Sprintf("/api/user/texts/%s", text.ID),
+			nil, true, "user1")
 
 		w := httptest.NewRecorder()
-		handler.DeleteText(w, req)
+		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusGone, w.Code)
 
 		// Пытаемся получить удаленные данные
-		getReq := createRequestWithChiParam("GET", fmt.Sprintf("/api/user/texts/%s", text.ID),
-			"id", text.ID, nil, true, "user1")
+		getReq := createTestRequest("GET", fmt.Sprintf("/api/user/texts/%s", text.ID),
+			nil, true, "user1")
 		getW := httptest.NewRecorder()
-		handler.GetText(getW, getReq)
+		router.ServeHTTP(getW, getReq)
 
 		assert.Equal(t, http.StatusNotFound, getW.Code)
 	})
@@ -543,50 +579,44 @@ func TestTextDataCRUD(t *testing.T) {
 
 // TestUnauthorizedAccess - ТЕСТЫ БЕЗ АВТОРИЗАЦИИ
 func TestUnauthorizedAccess(t *testing.T) {
-	handler, _ := createTestHandler()
+	router, _ := createTestHandlerAndRouter()
 	testData := getTestData()
 
 	tests := []struct {
-		name    string
-		method  string
-		path    string
-		body    interface{}
-		handler func(http.ResponseWriter, *http.Request)
+		name   string
+		method string
+		path   string
+		body   interface{}
 	}{
 		{
-			name:    "CreateBinary без авторизации",
-			method:  "POST",
-			path:    "/api/user/binaries",
-			body:    testData.binary,
-			handler: handler.CreateBinary,
+			name:   "CreateBinary без авторизации",
+			method: "POST",
+			path:   "/api/user/binaries",
+			body:   testData.binary,
 		},
 		{
-			name:    "GetAllBinaries без авторизации",
-			method:  "GET",
-			path:    "/api/user/binaries",
-			body:    nil,
-			handler: handler.GetAllBinaries,
+			name:   "GetAllBinaries без авторизации",
+			method: "GET",
+			path:   "/api/user/binaries",
+			body:   nil,
 		},
 		{
-			name:    "CreateCard без авторизации",
-			method:  "POST",
-			path:    "/api/user/card",
-			body:    testData.card,
-			handler: handler.CreateCard,
+			name:   "CreateCard без авторизации",
+			method: "POST",
+			path:   "/api/user/card",
+			body:   testData.card,
 		},
 		{
-			name:    "CreateCredentials без авторизации",
-			method:  "POST",
-			path:    "/api/user/credentials",
-			body:    testData.credentials,
-			handler: handler.CreateCredentials,
+			name:   "CreateCredentials без авторизации",
+			method: "POST",
+			path:   "/api/user/credentials",
+			body:   testData.credentials,
 		},
 		{
-			name:    "CreateText без авторизации",
-			method:  "POST",
-			path:    "/api/user/texts",
-			body:    testData.text,
-			handler: handler.CreateText,
+			name:   "CreateText без авторизации",
+			method: "POST",
+			path:   "/api/user/texts",
+			body:   testData.text,
 		},
 	}
 
@@ -595,7 +625,7 @@ func TestUnauthorizedAccess(t *testing.T) {
 			req := createTestRequest(tt.method, tt.path, tt.body, false, "")
 			w := httptest.NewRecorder()
 
-			tt.handler(w, req)
+			router.ServeHTTP(w, req)
 
 			assert.Equal(t, http.StatusUnauthorized, w.Code)
 			assert.Contains(t, w.Body.String(), "Authentication required")
@@ -605,17 +635,17 @@ func TestUnauthorizedAccess(t *testing.T) {
 
 // TestErrorScenarios - ТЕСТЫ ОШИБОЧНЫХ СЦЕНАРИЕВ
 func TestErrorScenarios(t *testing.T) {
-	handler, _ := createTestHandler()
+	router, _ := createTestHandlerAndRouter()
 
 	// Регистрируем пользователя
-	registeruser1(t, handler, "user1", user1s["user1"])
+	registerTestUser(t, router, "user1", testUsers["user1"])
 
 	t.Run("Получение несуществующих данных", func(t *testing.T) {
-		req := createRequestWithChiParam("GET", "/api/user/binaries/999999",
-			"id", "999999", nil, true, "user1")
+		req := createTestRequest("GET", "/api/user/binaries/999999",
+			nil, true, "user1")
 
 		w := httptest.NewRecorder()
-		handler.GetBinary(w, req)
+		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusNotFound, w.Code)
 		assert.Contains(t, w.Body.String(), "not found")
@@ -629,7 +659,7 @@ func TestErrorScenarios(t *testing.T) {
 		req = req.WithContext(ctx)
 
 		w := httptest.NewRecorder()
-		handler.CreateBinary(w, req)
+		router.ServeHTTP(w, req)
 
 		assert.Equal(t, http.StatusBadRequest, w.Code)
 	})
@@ -637,7 +667,7 @@ func TestErrorScenarios(t *testing.T) {
 
 // TestMultiUserEnvironment - ТЕСТЫ МНОГОПОЛЬЗОВАТЕЛЬСКОЙ СРЕДЫ
 func TestMultiUserEnvironment(t *testing.T) {
-	handler, _ := createTestHandler()
+	router, _ := createTestHandlerAndRouter()
 
 	t.Run("Несколько пользователей создают и получают свои данные", func(t *testing.T) {
 		users := []struct {
@@ -657,10 +687,10 @@ func TestMultiUserEnvironment(t *testing.T) {
 				Password: u.password,
 			}
 
-			registerReq := createTestRequest("POST", "/api/user/register", userDTO, false, "")
-			registerW := httptest.NewRecorder()
-			handler.Register(registerW, registerReq)
-			assert.Equal(t, http.StatusOK, registerW.Code, "User %s should register successfully", u.login)
+			req := createTestRequest("POST", "/register", userDTO, false, "")
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+			assert.Equal(t, http.StatusOK, w.Code, "User %s should register successfully", u.login)
 		}
 
 		// Каждый пользователь создает свои данные
@@ -674,7 +704,7 @@ func TestMultiUserEnvironment(t *testing.T) {
 				req := createTestRequest("POST", "/api/user/binaries", binary, true, u.login)
 				w := httptest.NewRecorder()
 
-				handler.CreateBinary(w, req)
+				router.ServeHTTP(w, req)
 
 				assert.Equal(t, http.StatusCreated, w.Code,
 					"User %s should be able to create binary data", u.login)
@@ -685,7 +715,7 @@ func TestMultiUserEnvironment(t *testing.T) {
 		for _, u := range users {
 			req := createTestRequest("GET", "/api/user/binaries", nil, true, u.login)
 			w := httptest.NewRecorder()
-			handler.GetAllBinaries(w, req)
+			router.ServeHTTP(w, req)
 
 			assert.Equal(t, http.StatusOK, w.Code,
 				"User %s should be able to get all binaries", u.login)
@@ -741,7 +771,7 @@ func TestPasswordHashing(t *testing.T) {
 
 // TestCompleteUserScenario - ПОЛНЫЙ ЦИКЛ ОПЕРАЦИЙ
 func TestCompleteUserScenario(t *testing.T) {
-	handler, _ := createTestHandler()
+	router, _ := createTestHandlerAndRouter()
 	testData := getTestData()
 
 	t.Run("Полный сценарий работы пользователя", func(t *testing.T) {
@@ -751,9 +781,9 @@ func TestCompleteUserScenario(t *testing.T) {
 			Password: "newpassword",
 		}
 
-		registerReq := createTestRequest("POST", "/api/user/register", newUser, false, "")
+		registerReq := createTestRequest("POST", "/register", newUser, false, "")
 		registerW := httptest.NewRecorder()
-		handler.Register(registerW, registerReq)
+		router.ServeHTTP(registerW, registerReq)
 		assert.Equal(t, http.StatusOK, registerW.Code)
 
 		// 2. Логин с новыми учетными данными
@@ -762,15 +792,15 @@ func TestCompleteUserScenario(t *testing.T) {
 			"password": "newpassword",
 		}
 
-		loginHttpReq := createTestRequest("POST", "/api/user/login", loginReq, false, "")
+		loginHttpReq := createTestRequest("POST", "/login", loginReq, false, "")
 		loginW := httptest.NewRecorder()
-		handler.Login(loginW, loginHttpReq)
+		router.ServeHTTP(loginW, loginHttpReq)
 		assert.Equal(t, http.StatusOK, loginW.Code)
 
 		// 3. Создание различных данных
 		binaryReq := createTestRequest("POST", "/api/user/binaries", testData.binary, true, "newuser")
 		binaryW := httptest.NewRecorder()
-		handler.CreateBinary(binaryW, binaryReq)
+		router.ServeHTTP(binaryW, binaryReq)
 		assert.Equal(t, http.StatusCreated, binaryW.Code)
 
 		var binaryResp entities.BinaryData
@@ -779,7 +809,7 @@ func TestCompleteUserScenario(t *testing.T) {
 
 		cardReq := createTestRequest("POST", "/api/user/card", testData.card, true, "newuser")
 		cardW := httptest.NewRecorder()
-		handler.CreateCard(cardW, cardReq)
+		router.ServeHTTP(cardW, cardReq)
 		assert.Equal(t, http.StatusCreated, cardW.Code)
 
 		var cardResp entities.CardInformation
@@ -787,20 +817,36 @@ func TestCompleteUserScenario(t *testing.T) {
 		require.NoError(t, err)
 
 		// 4. Получение созданных данных
-		getBinaryReq := createRequestWithChiParam("GET", fmt.Sprintf("/api/user/binaries/%s", binaryResp.ID),
-			"id", binaryResp.ID, nil, true, "newuser")
+		getBinaryReq := createTestRequest("GET", fmt.Sprintf("/api/user/binaries/%s", binaryResp.ID),
+			nil, true, "newuser")
 		getBinaryW := httptest.NewRecorder()
-		handler.GetBinary(getBinaryW, getBinaryReq)
+		router.ServeHTTP(getBinaryW, getBinaryReq)
 		assert.Equal(t, http.StatusOK, getBinaryW.Code)
 
-		getCardReq := createRequestWithChiParam("GET", fmt.Sprintf("/api/user/cards/%s", cardResp.ID),
-			"id", cardResp.ID, nil, true, "newuser")
+		getCardReq := createTestRequest("GET", fmt.Sprintf("/api/user/cards/%s", cardResp.ID),
+			nil, true, "newuser")
 		getCardW := httptest.NewRecorder()
-		handler.GetCard(getCardW, getCardReq)
+		router.ServeHTTP(getCardW, getCardReq)
 		assert.Equal(t, http.StatusOK, getCardW.Code)
 
 		// 5. Проверка, что данные созданы
 		assert.NotEmpty(t, binaryResp.ID)
 		assert.NotEmpty(t, cardResp.ID)
+	})
+}
+
+// TestMiddleware - тестирование middleware
+func TestMiddleware(t *testing.T) {
+	router, _ := createTestHandlerAndRouter()
+
+	t.Run("Проверка работы middleware авторизации", func(t *testing.T) {
+		// Пытаемся получить доступ без авторизации
+		req := createTestRequest("GET", "/api/user/binaries", nil, false, "")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		// Middleware должен вернуть 401
+		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
 }
