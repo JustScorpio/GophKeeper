@@ -11,6 +11,7 @@ import (
 	"github.com/JustScorpio/GophKeeper/backend/internal/models/dtos"
 	"github.com/JustScorpio/GophKeeper/backend/internal/models/entities"
 	"github.com/JustScorpio/GophKeeper/backend/internal/services"
+	"github.com/JustScorpio/GophKeeper/backend/internal/utils"
 	"github.com/go-chi/chi"
 )
 
@@ -50,6 +51,14 @@ func (h *GophkeeperHandler) Register(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Login and password are required", http.StatusBadRequest)
 		return
 	}
+
+	// Хэшируем пароль
+	hashedPassword, err := utils.HashPassword(req.Password)
+	if err != nil {
+		http.Error(w, "Something went wrong", http.StatusInternalServerError)
+		return
+	}
+	req.Password = hashedPassword
 
 	// Создаём пользователя
 	user, err := h.service.CreateUser(r.Context(), req)
@@ -112,8 +121,9 @@ func (h *GophkeeperHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if user.Password != req.Password {
-		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+	// Проверяем пароль
+	if !utils.CheckPasswordHash(req.Password, user.Password) {
+		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}
 

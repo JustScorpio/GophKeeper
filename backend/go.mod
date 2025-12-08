@@ -21,7 +21,7 @@ require (
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/stretchr/testify v1.8.4
 	go.uber.org/multierr v1.10.0 // indirect
-	golang.org/x/crypto v0.38.0 // indirect
+	golang.org/x/crypto v0.38.0
 	golang.org/x/sync v0.17.0 // indirect
 	golang.org/x/text v0.25.0 // indirect
 )
