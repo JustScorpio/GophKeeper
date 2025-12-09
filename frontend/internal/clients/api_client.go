@@ -23,13 +23,16 @@ type APIClient struct {
 }
 
 // NewAPIClient - создать клиент для взаимодействия с апи сервера
-func NewAPIClient(baseURL string, password string) *APIClient {
+func NewAPIClient(baseURL string) *APIClient {
 	jar, _ := cookiejar.New(nil)
 	return &APIClient{
-		baseURL:       baseURL,
-		httpClient:    &http.Client{Jar: jar},
-		cryptoService: encryption.NewCryptoService(password),
+		baseURL:    baseURL,
+		httpClient: &http.Client{Jar: jar},
 	}
+}
+
+func (s *APIClient) setCryptoService(password string) {
+	s.cryptoService = encryption.NewCryptoService(password)
 }
 
 // Register - регистрация пользователя (без шифрования логина и пароля)
@@ -59,6 +62,9 @@ func (s *APIClient) Register(ctx context.Context, login, password string) error 
 	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 		return fmt.Errorf("registration failed with status: %d", resp.StatusCode)
 	}
+
+	//Настраиваем крипто-сервис
+	s.setCryptoService(password)
 
 	return nil
 }
@@ -90,6 +96,9 @@ func (s *APIClient) Login(ctx context.Context, login, password string) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("login failed with status: %d", resp.StatusCode)
 	}
+
+	//Настраиваем крипто-сервис
+	s.setCryptoService(password)
 
 	return nil
 }

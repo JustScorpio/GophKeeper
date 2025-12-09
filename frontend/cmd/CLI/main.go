@@ -1133,7 +1133,6 @@ func (a *App) createText(reader *bufio.Reader) {
 	} else {
 		fmt.Println("SUCCESS")
 		fmt.Printf("Created text with ID: %s\n", text.ID)
-		fmt.Printf("Length: %d characters\n", len(text.Data))
 	}
 }
 
@@ -1159,7 +1158,6 @@ func (a *App) viewText(reader *bufio.Reader) {
 	fmt.Println("\n=== Text Details ===")
 	fmt.Printf("ID: %s\n", text.ID)
 	fmt.Printf("Metadata: %s\n", text.Metadata)
-	fmt.Printf("Length: %d characters\n", len(text.Data))
 	fmt.Printf("\n=== Content ===\n%s\n", text.Data)
 }
 
@@ -1185,7 +1183,6 @@ func (a *App) updateText(reader *bufio.Reader) {
 	fmt.Println("\n=== Current Text ===")
 	fmt.Printf("ID: %s\n", existing.ID)
 	fmt.Printf("Metadata: %s\n", existing.Metadata)
-	fmt.Printf("Length: %d characters\n", len(existing.Data))
 
 	fmt.Println("\n=== Update Options ===")
 	fmt.Println("1. Update metadata only")
@@ -1219,7 +1216,6 @@ func (a *App) updateText(reader *bufio.Reader) {
 
 		metadata = existing.Metadata
 		content = strings.Join(lines, "")
-		fmt.Printf("New length: %d characters\n", len(content))
 
 	case "3": // И метаданные, и содержимое
 		fmt.Print("New metadata: ")
@@ -1237,7 +1233,6 @@ func (a *App) updateText(reader *bufio.Reader) {
 		}
 
 		content = strings.Join(lines, "")
-		fmt.Printf("New length: %d characters\n", len(content))
 
 	default:
 		fmt.Println("Invalid option")
@@ -1262,7 +1257,6 @@ func (a *App) updateText(reader *bufio.Reader) {
 	} else {
 		fmt.Println("SUCCESS")
 		fmt.Printf("Updated text with ID: %s\n", updated.ID)
-		fmt.Printf("New length: %d characters\n", len(updated.Data))
 	}
 }
 
