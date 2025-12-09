@@ -5,14 +5,16 @@ import (
 	"fmt"
 
 	"github.com/JustScorpio/GophKeeper/frontend/internal/clients"
+	"github.com/JustScorpio/GophKeeper/frontend/internal/encryption"
 	"github.com/JustScorpio/GophKeeper/frontend/internal/models/dtos"
 	"github.com/JustScorpio/GophKeeper/frontend/internal/models/entities"
 )
 
 type GophkeeperService struct {
-	apiClient    clients.IAPIClient
-	localStorage *StorageService
-	syncService  *SyncService
+	apiClient     clients.IAPIClient
+	localStorage  *StorageService
+	syncService   *SyncService
+	cryptoService *encryption.CryptoService
 }
 
 func NewGophkeeperService(
@@ -27,9 +29,19 @@ func NewGophkeeperService(
 	}
 }
 
+func (s *GophkeeperService) SetEncryption(password string) error {
+	s.cryptoService = encryption.NewCryptoService(password)
+	return nil
+}
+
 // Auth methods
 func (s *GophkeeperService) Register(ctx context.Context, login, password string) error {
-	return s.apiClient.Register(ctx, login, password)
+	err := s.apiClient.Register(ctx, login, password)
+	if err != nil {
+		return err
+	}
+
+	return s.SetEncryption(password)
 }
 
 func (s *GophkeeperService) Login(ctx context.Context, login, password string) error {
@@ -43,11 +55,16 @@ func (s *GophkeeperService) Login(ctx context.Context, login, password string) e
 		return fmt.Errorf("sync failed: %w", err)
 	}
 
-	return nil
+	return s.SetEncryption(password)
 }
 
 // CreateBinary - создать бинарные данные (на клиенте и сервере)
 func (s *GophkeeperService) CreateBinary(ctx context.Context, dto *dtos.NewBinaryData) (*entities.BinaryData, error) {
+	// Шифруем DTO перед отправкой на сервер
+	if err := dto.EncryptFields(s.cryptoService); err != nil {
+		return nil, fmt.Errorf("failed to encrypt binary DTO: %w", err)
+	}
+
 	// Создаем на сервере
 	serverBinary, err := s.apiClient.CreateBinary(ctx, dto)
 	if err != nil {
@@ -57,8 +74,12 @@ func (s *GophkeeperService) CreateBinary(ctx context.Context, dto *dtos.NewBinar
 	// Создаем локально
 	localBinary, err := s.localStorage.CreateBinary(ctx, serverBinary)
 	if err != nil {
-		// TODO: Что делать локальное создание не удалось? Маловероятно да и правильного решения как будто нет - поэтому игнорим.
-		return serverBinary, fmt.Errorf("created on server but local failed: %w", err)
+		return nil, fmt.Errorf("created on server but local failed: %w", err)
+	}
+
+	// Дешифруем локальную сущность для возврата
+	if err := localBinary.DecryptFields(s.cryptoService); err != nil {
+		return nil, fmt.Errorf("failed to decrypt local binary: %w", err)
 	}
 
 	return localBinary, nil
@@ -66,6 +87,11 @@ func (s *GophkeeperService) CreateBinary(ctx context.Context, dto *dtos.NewBinar
 
 // CreateCard - создать данные карты (на клиенте и сервере)
 func (s *GophkeeperService) CreateCard(ctx context.Context, dto *dtos.NewCardInformation) (*entities.CardInformation, error) {
+	// Шифруем DTO перед отправкой на сервер
+	if err := dto.EncryptFields(s.cryptoService); err != nil {
+		return nil, fmt.Errorf("failed to encrypt card DTO: %w", err)
+	}
+
 	serverCard, err := s.apiClient.CreateCard(ctx, dto)
 	if err != nil {
 		return nil, err
@@ -73,7 +99,12 @@ func (s *GophkeeperService) CreateCard(ctx context.Context, dto *dtos.NewCardInf
 
 	localCard, err := s.localStorage.CreateCard(ctx, serverCard)
 	if err != nil {
-		return serverCard, fmt.Errorf("created on server but local failed: %w", err)
+		return nil, fmt.Errorf("created on server but local failed: %w", err)
+	}
+
+	// Дешифруем локальную сущность для возврата
+	if err := localCard.DecryptFields(s.cryptoService); err != nil {
+		return nil, fmt.Errorf("failed to decrypt local card: %w", err)
 	}
 
 	return localCard, nil
@@ -81,6 +112,11 @@ func (s *GophkeeperService) CreateCard(ctx context.Context, dto *dtos.NewCardInf
 
 // CreateCredentials - создать учётные данные (на клиенте и сервере)
 func (s *GophkeeperService) CreateCredentials(ctx context.Context, dto *dtos.NewCredentials) (*entities.Credentials, error) {
+	// Шифруем только метаданные в DTO
+	if err := dto.EncryptFields(s.cryptoService); err != nil {
+		return nil, fmt.Errorf("failed to encrypt credentials DTO: %w", err)
+	}
+
 	serverCredentials, err := s.apiClient.CreateCredentials(ctx, dto)
 	if err != nil {
 		return nil, err
@@ -88,14 +124,24 @@ func (s *GophkeeperService) CreateCredentials(ctx context.Context, dto *dtos.New
 
 	localCredentials, err := s.localStorage.CreateCredentials(ctx, serverCredentials)
 	if err != nil {
-		return serverCredentials, fmt.Errorf("created on server but local failed: %w", err)
+		return nil, fmt.Errorf("created on server but local failed: %w", err)
+	}
+
+	// Дешифруем локальную сущность для возврата
+	if err := localCredentials.DecryptFields(s.cryptoService); err != nil {
+		return nil, fmt.Errorf("failed to decrypt local credentials: %w", err)
 	}
 
 	return localCredentials, nil
 }
 
-// CreateText - создать данные карты (на клиенте и сервере)
+// CreateText - создать текстовые данные (на клиенте и сервере)
 func (s *GophkeeperService) CreateText(ctx context.Context, dto *dtos.NewTextData) (*entities.TextData, error) {
+	// Шифруем DTO перед отправкой на сервер
+	if err := dto.EncryptFields(s.cryptoService); err != nil {
+		return nil, fmt.Errorf("failed to encrypt text DTO: %w", err)
+	}
+
 	serverText, err := s.apiClient.CreateText(ctx, dto)
 	if err != nil {
 		return nil, err
@@ -103,7 +149,12 @@ func (s *GophkeeperService) CreateText(ctx context.Context, dto *dtos.NewTextDat
 
 	localText, err := s.localStorage.CreateText(ctx, serverText)
 	if err != nil {
-		return serverText, fmt.Errorf("created on server but local failed: %w", err)
+		return nil, fmt.Errorf("created on server but local failed: %w", err)
+	}
+
+	// Дешифруем локальную сущность для возврата
+	if err := localText.DecryptFields(s.cryptoService); err != nil {
+		return nil, fmt.Errorf("failed to decrypt local text: %w", err)
 	}
 
 	return localText, nil
@@ -111,54 +162,152 @@ func (s *GophkeeperService) CreateText(ctx context.Context, dto *dtos.NewTextDat
 
 // GetBinary - получить бинарные данные (из локальной бд)
 func (s *GophkeeperService) GetBinary(ctx context.Context, id string) (*entities.BinaryData, error) {
-	return s.localStorage.GetBinary(ctx, id)
+	binary, err := s.localStorage.GetBinary(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Дешифруем данные из локального хранилища
+	if err := binary.DecryptFields(s.cryptoService); err != nil {
+		return nil, fmt.Errorf("failed to decrypt binary: %w", err)
+	}
+
+	return binary, nil
 }
 
 // GetAllBinaries - получить все бинарные данные (из локальной бд)
 func (s *GophkeeperService) GetAllBinaries(ctx context.Context) ([]entities.BinaryData, error) {
-	return s.localStorage.GetAllBinaries(ctx)
+	binaries, err := s.localStorage.GetAllBinaries(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Дешифруем все бинарные данные
+	for i := range binaries {
+		if err := binaries[i].DecryptFields(s.cryptoService); err != nil {
+			return nil, fmt.Errorf("failed to decrypt binary %s: %w", binaries[i].ID, err)
+		}
+	}
+
+	return binaries, nil
 }
 
 // GetCard - получить данные карты (из локальной бд)
 func (s *GophkeeperService) GetCard(ctx context.Context, id string) (*entities.CardInformation, error) {
-	return s.localStorage.GetCard(ctx, id)
+	card, err := s.localStorage.GetCard(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Дешифруем данные из локального хранилища
+	if err := card.DecryptFields(s.cryptoService); err != nil {
+		return nil, fmt.Errorf("failed to decrypt card: %w", err)
+	}
+
+	return card, nil
 }
 
 // GetAllCards - получить данные всех карт (из локальной бд)
 func (s *GophkeeperService) GetAllCards(ctx context.Context) ([]entities.CardInformation, error) {
-	return s.localStorage.GetAllCards(ctx)
+	cards, err := s.localStorage.GetAllCards(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Дешифруем все данные карт
+	for i := range cards {
+		if err := cards[i].DecryptFields(s.cryptoService); err != nil {
+			return nil, fmt.Errorf("failed to decrypt card %s: %w", cards[i].ID, err)
+		}
+	}
+
+	return cards, nil
 }
 
 // GetCredentials - получить учётные данные (из локальной бд)
 func (s *GophkeeperService) GetCredentials(ctx context.Context, id string) (*entities.Credentials, error) {
-	return s.localStorage.GetCredentials(ctx, id)
+	credentials, err := s.localStorage.GetCredentials(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Дешифруем данные из локального хранилища
+	if err := credentials.DecryptFields(s.cryptoService); err != nil {
+		return nil, fmt.Errorf("failed to decrypt credentials: %w", err)
+	}
+
+	return credentials, nil
 }
 
 // GetAllCredentials - получить всё учётные данные (из локальной бд)
 func (s *GophkeeperService) GetAllCredentials(ctx context.Context) ([]entities.Credentials, error) {
-	return s.localStorage.GetAllCredentials(ctx)
+	credentials, err := s.localStorage.GetAllCredentials(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Дешифруем все учётные данные
+	for i := range credentials {
+		if err := credentials[i].DecryptFields(s.cryptoService); err != nil {
+			return nil, fmt.Errorf("failed to decrypt credentials %s: %w", credentials[i].ID, err)
+		}
+	}
+
+	return credentials, nil
 }
 
 // GetText - получить текстовые данные (из локальной бд)
 func (s *GophkeeperService) GetText(ctx context.Context, id string) (*entities.TextData, error) {
-	return s.localStorage.GetText(ctx, id)
+	text, err := s.localStorage.GetText(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Дешифруем данные из локального хранилища
+	if err := text.DecryptFields(s.cryptoService); err != nil {
+		return nil, fmt.Errorf("failed to decrypt text: %w", err)
+	}
+
+	return text, nil
 }
 
 // GetAllTexts - получить все текстовые данные (из локальной бд)
 func (s *GophkeeperService) GetAllTexts(ctx context.Context) ([]entities.TextData, error) {
-	return s.localStorage.GetAllTexts(ctx)
+	texts, err := s.localStorage.GetAllTexts(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Дешифруем все текстовые данные
+	for i := range texts {
+		if err := texts[i].DecryptFields(s.cryptoService); err != nil {
+			return nil, fmt.Errorf("failed to decrypt text %s: %w", texts[i].ID, err)
+		}
+	}
+
+	return texts, nil
 }
 
 // UpdateBinary - обновить бинарные данные
 func (s *GophkeeperService) UpdateBinary(ctx context.Context, entity *entities.BinaryData) (*entities.BinaryData, error) {
+	// Шифруем перед отправкой на сервер
+	if err := entity.EncryptFields(s.cryptoService); err != nil {
+		return nil, fmt.Errorf("failed to encrypt binary for update: %w", err)
+	}
+
 	serverBinary, err := s.apiClient.UpdateBinary(ctx, entity)
 	if err != nil {
 		return nil, err
 	}
 
-	localBinary, err := s.localStorage.UpdateBinary(ctx, entity)
+	localBinary, err := s.localStorage.UpdateBinary(ctx, serverBinary)
 	if err != nil {
 		return serverBinary, fmt.Errorf("updated on server but local failed: %w", err)
+	}
+
+	// Дешифруем локальную сущность для возврата
+	if err := localBinary.DecryptFields(s.cryptoService); err != nil {
+		return nil, fmt.Errorf("failed to decrypt local binary: %w", err)
 	}
 
 	return localBinary, nil
@@ -166,14 +315,24 @@ func (s *GophkeeperService) UpdateBinary(ctx context.Context, entity *entities.B
 
 // UpdateCard - обновить данные карты
 func (s *GophkeeperService) UpdateCard(ctx context.Context, entity *entities.CardInformation) (*entities.CardInformation, error) {
+	// Шифруем перед отправкой на сервер
+	if err := entity.EncryptFields(s.cryptoService); err != nil {
+		return nil, fmt.Errorf("failed to encrypt card for update: %w", err)
+	}
+
 	serverCard, err := s.apiClient.UpdateCard(ctx, entity)
 	if err != nil {
 		return nil, err
 	}
 
-	localCard, err := s.localStorage.UpdateCard(ctx, entity)
+	localCard, err := s.localStorage.UpdateCard(ctx, serverCard)
 	if err != nil {
 		return serverCard, fmt.Errorf("updated on server but local failed: %w", err)
+	}
+
+	// Дешифруем локальную сущность для возврата
+	if err := localCard.DecryptFields(s.cryptoService); err != nil {
+		return nil, fmt.Errorf("failed to decrypt local card: %w", err)
 	}
 
 	return localCard, nil
@@ -181,14 +340,24 @@ func (s *GophkeeperService) UpdateCard(ctx context.Context, entity *entities.Car
 
 // UpdateCredentials - обновить учётные данные
 func (s *GophkeeperService) UpdateCredentials(ctx context.Context, entity *entities.Credentials) (*entities.Credentials, error) {
+	// Шифруем метаданные перед отправкой на сервер
+	if err := entity.EncryptFields(s.cryptoService); err != nil {
+		return nil, fmt.Errorf("failed to encrypt credentials for update: %w", err)
+	}
+
 	serverCredentials, err := s.apiClient.UpdateCredentials(ctx, entity)
 	if err != nil {
 		return nil, err
 	}
 
-	localCredentials, err := s.localStorage.UpdateCredentials(ctx, entity)
+	localCredentials, err := s.localStorage.UpdateCredentials(ctx, serverCredentials)
 	if err != nil {
 		return serverCredentials, fmt.Errorf("updated on server but local failed: %w", err)
+	}
+
+	// Дешифруем локальную сущность для возврата
+	if err := localCredentials.DecryptFields(s.cryptoService); err != nil {
+		return nil, fmt.Errorf("failed to decrypt local credentials: %w", err)
 	}
 
 	return localCredentials, nil
@@ -196,16 +365,25 @@ func (s *GophkeeperService) UpdateCredentials(ctx context.Context, entity *entit
 
 // UpdateText - обновить текстовые данные
 func (s *GophkeeperService) UpdateText(ctx context.Context, entity *entities.TextData) (*entities.TextData, error) {
+	// Шифруем перед отправкой на сервер
+	if err := entity.EncryptFields(s.cryptoService); err != nil {
+		return nil, fmt.Errorf("failed to encrypt text for update: %w", err)
+	}
+
 	serverText, err := s.apiClient.UpdateText(ctx, entity)
 	if err != nil {
 		return nil, err
 	}
 
-	localText, err := s.localStorage.UpdateText(ctx, entity)
+	localText, err := s.localStorage.UpdateText(ctx, serverText)
 	if err != nil {
 		return serverText, fmt.Errorf("updated on server but local failed: %w", err)
 	}
 
+	// Дешифруем локальную сущность для возврата
+	if err := localText.DecryptFields(s.cryptoService); err != nil {
+		return nil, fmt.Errorf("failed to decrypt local text: %w", err)
+	}
 	return localText, nil
 }
 

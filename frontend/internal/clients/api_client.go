@@ -1,4 +1,3 @@
-// clients/api_client.go
 package clients
 
 import (
@@ -9,17 +8,14 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 
-	"github.com/JustScorpio/GophKeeper/frontend/internal/encryption"
 	"github.com/JustScorpio/GophKeeper/frontend/internal/models/dtos"
 	"github.com/JustScorpio/GophKeeper/frontend/internal/models/entities"
-	"github.com/JustScorpio/GophKeeper/frontend/internal/models/interfaces"
 )
 
-// APIClient - клиент для взаимодействия с апи сервера
+// ApiClient - клиент для взаимодействия с апи сервера
 type APIClient struct {
-	baseURL       string
-	httpClient    *http.Client
-	cryptoService *encryption.CryptoService
+	baseURL    string
+	httpClient *http.Client
 }
 
 // NewAPIClient - создать клиент для взаимодействия с апи сервера
@@ -31,11 +27,7 @@ func NewAPIClient(baseURL string) *APIClient {
 	}
 }
 
-func (s *APIClient) setCryptoService(password string) {
-	s.cryptoService = encryption.NewCryptoService(password)
-}
-
-// Register - регистрация пользователя (без шифрования логина и пароля)
+// Register - регистрация пользователя
 func (s *APIClient) Register(ctx context.Context, login, password string) error {
 	reqBody := map[string]string{
 		"login":    login,
@@ -63,13 +55,10 @@ func (s *APIClient) Register(ctx context.Context, login, password string) error 
 		return fmt.Errorf("registration failed with status: %d", resp.StatusCode)
 	}
 
-	//Настраиваем крипто-сервис
-	s.setCryptoService(password)
-
 	return nil
 }
 
-// Login - аутентификация пользователя (без шифрования логина и пароля)
+// Login - аутентификация пользователя
 func (s *APIClient) Login(ctx context.Context, login, password string) error {
 	reqBody := map[string]string{
 		"login":    login,
@@ -97,19 +86,11 @@ func (s *APIClient) Login(ctx context.Context, login, password string) error {
 		return fmt.Errorf("login failed with status: %d", resp.StatusCode)
 	}
 
-	//Настраиваем крипто-сервис
-	s.setCryptoService(password)
-
 	return nil
 }
 
 // CreateBinary - создать бинарные данные
 func (c *APIClient) CreateBinary(ctx context.Context, dto *dtos.NewBinaryData) (*entities.BinaryData, error) {
-	// Шифруем перед отправкой
-	if err := dto.EncryptFields(c.cryptoService); err != nil {
-		return nil, fmt.Errorf("failed to encrypt binary data: %w", err)
-	}
-
 	jsonData, err := json.Marshal(dto)
 	if err != nil {
 		return nil, err
@@ -134,13 +115,6 @@ func (c *APIClient) CreateBinary(ctx context.Context, dto *dtos.NewBinaryData) (
 	var binary entities.BinaryData
 	if err := json.NewDecoder(resp.Body).Decode(&binary); err != nil {
 		return nil, err
-	}
-
-	// Дешифруем полученные данные
-	if decryptable, ok := interface{}(&binary).(interfaces.Decryptable); ok {
-		if err := decryptable.DecryptFields(c.cryptoService); err != nil {
-			return nil, fmt.Errorf("failed to decrypt binary data: %w", err)
-		}
 	}
 
 	return &binary, nil
@@ -168,23 +142,11 @@ func (c *APIClient) GetAllBinaries(ctx context.Context) ([]entities.BinaryData, 
 		return nil, err
 	}
 
-	// Дешифруем все бинарные данные
-	for i := range binaries {
-		if err := binaries[i].DecryptFields(c.cryptoService); err != nil {
-			return nil, fmt.Errorf("failed to decrypt binary %s: %w", binaries[i].ID, err)
-		}
-	}
-
 	return binaries, nil
 }
 
 // UpdateBinary - обновить бинарные данные
 func (c *APIClient) UpdateBinary(ctx context.Context, entity *entities.BinaryData) (*entities.BinaryData, error) {
-	// Шифруем entity перед отправкой
-	if err := entity.EncryptFields(c.cryptoService); err != nil {
-		return nil, fmt.Errorf("failed to encrypt binary data: %w", err)
-	}
-
 	jsonData, err := json.Marshal(entity)
 	if err != nil {
 		return nil, err
@@ -209,11 +171,6 @@ func (c *APIClient) UpdateBinary(ctx context.Context, entity *entities.BinaryDat
 	var updatedBinary entities.BinaryData
 	if err := json.NewDecoder(resp.Body).Decode(&updatedBinary); err != nil {
 		return nil, err
-	}
-
-	// Дешифруем полученные данные
-	if err := updatedBinary.DecryptFields(c.cryptoService); err != nil {
-		return nil, fmt.Errorf("failed to decrypt binary data: %w", err)
 	}
 
 	return &updatedBinary, nil
@@ -241,11 +198,6 @@ func (c *APIClient) DeleteBinary(ctx context.Context, id string) error {
 
 // CreateCard - создать данные карты
 func (c *APIClient) CreateCard(ctx context.Context, dto *dtos.NewCardInformation) (*entities.CardInformation, error) {
-	// Шифруем DTO перед отправкой
-	if err := dto.EncryptFields(c.cryptoService); err != nil {
-		return nil, fmt.Errorf("failed to encrypt card data: %w", err)
-	}
-
 	jsonData, err := json.Marshal(dto)
 	if err != nil {
 		return nil, err
@@ -270,11 +222,6 @@ func (c *APIClient) CreateCard(ctx context.Context, dto *dtos.NewCardInformation
 	var card entities.CardInformation
 	if err := json.NewDecoder(resp.Body).Decode(&card); err != nil {
 		return nil, err
-	}
-
-	// Дешифруем полученные данные
-	if err := card.DecryptFields(c.cryptoService); err != nil {
-		return nil, fmt.Errorf("failed to decrypt card data: %w", err)
 	}
 
 	return &card, nil
@@ -302,23 +249,11 @@ func (c *APIClient) GetAllCards(ctx context.Context) ([]entities.CardInformation
 		return nil, err
 	}
 
-	// Дешифруем все данные карт
-	for i := range cards {
-		if err := cards[i].DecryptFields(c.cryptoService); err != nil {
-			return nil, fmt.Errorf("failed to decrypt card %s: %w", cards[i].ID, err)
-		}
-	}
-
 	return cards, nil
 }
 
 // UpdateCard - обновить данные карты
 func (c *APIClient) UpdateCard(ctx context.Context, entity *entities.CardInformation) (*entities.CardInformation, error) {
-	// Шифруем entity перед отправкой
-	if err := entity.EncryptFields(c.cryptoService); err != nil {
-		return nil, fmt.Errorf("failed to encrypt card data: %w", err)
-	}
-
 	jsonData, err := json.Marshal(entity)
 	if err != nil {
 		return nil, err
@@ -343,11 +278,6 @@ func (c *APIClient) UpdateCard(ctx context.Context, entity *entities.CardInforma
 	var updatedCard entities.CardInformation
 	if err := json.NewDecoder(resp.Body).Decode(&updatedCard); err != nil {
 		return nil, err
-	}
-
-	// Дешифруем полученные данные
-	if err := updatedCard.DecryptFields(c.cryptoService); err != nil {
-		return nil, fmt.Errorf("failed to decrypt card data: %w", err)
 	}
 
 	return &updatedCard, nil
@@ -375,11 +305,6 @@ func (c *APIClient) DeleteCard(ctx context.Context, id string) error {
 
 // CreateCredentials - создать учётные данные
 func (c *APIClient) CreateCredentials(ctx context.Context, dto *dtos.NewCredentials) (*entities.Credentials, error) {
-	// Шифруем только метаданные в DTO
-	if err := dto.EncryptFields(c.cryptoService); err != nil {
-		return nil, fmt.Errorf("failed to encrypt credentials metadata: %w", err)
-	}
-
 	jsonData, err := json.Marshal(dto)
 	if err != nil {
 		return nil, err
@@ -404,11 +329,6 @@ func (c *APIClient) CreateCredentials(ctx context.Context, dto *dtos.NewCredenti
 	var credentials entities.Credentials
 	if err := json.NewDecoder(resp.Body).Decode(&credentials); err != nil {
 		return nil, err
-	}
-
-	// Дешифруем полученные метаданные
-	if err := credentials.DecryptFields(c.cryptoService); err != nil {
-		return nil, fmt.Errorf("failed to decrypt credentials metadata: %w", err)
 	}
 
 	return &credentials, nil
@@ -436,23 +356,11 @@ func (c *APIClient) GetAllCredentials(ctx context.Context) ([]entities.Credentia
 		return nil, err
 	}
 
-	// Дешифруем метаданные для всех credentials
-	for i := range credentials {
-		if err := credentials[i].DecryptFields(c.cryptoService); err != nil {
-			return nil, fmt.Errorf("failed to decrypt credentials %s: %w", credentials[i].ID, err)
-		}
-	}
-
 	return credentials, nil
 }
 
 // UpdateCredentials - обновить учётные данные
 func (c *APIClient) UpdateCredentials(ctx context.Context, entity *entities.Credentials) (*entities.Credentials, error) {
-	// Шифруем только метаданные в entity
-	if err := entity.EncryptFields(c.cryptoService); err != nil {
-		return nil, fmt.Errorf("failed to encrypt credentials metadata: %w", err)
-	}
-
 	jsonData, err := json.Marshal(entity)
 	if err != nil {
 		return nil, err
@@ -477,11 +385,6 @@ func (c *APIClient) UpdateCredentials(ctx context.Context, entity *entities.Cred
 	var updatedCredentials entities.Credentials
 	if err := json.NewDecoder(resp.Body).Decode(&updatedCredentials); err != nil {
 		return nil, err
-	}
-
-	// Дешифруем полученные метаданные
-	if err := updatedCredentials.DecryptFields(c.cryptoService); err != nil {
-		return nil, fmt.Errorf("failed to decrypt credentials metadata: %w", err)
 	}
 
 	return &updatedCredentials, nil
@@ -509,11 +412,6 @@ func (c *APIClient) DeleteCredentials(ctx context.Context, id string) error {
 
 // CreateText - создать текстовые данные
 func (c *APIClient) CreateText(ctx context.Context, dto *dtos.NewTextData) (*entities.TextData, error) {
-	// Шифруем DTO перед отправкой
-	if err := dto.EncryptFields(c.cryptoService); err != nil {
-		return nil, fmt.Errorf("failed to encrypt text data: %w", err)
-	}
-
 	jsonData, err := json.Marshal(dto)
 	if err != nil {
 		return nil, err
@@ -538,11 +436,6 @@ func (c *APIClient) CreateText(ctx context.Context, dto *dtos.NewTextData) (*ent
 	var text entities.TextData
 	if err := json.NewDecoder(resp.Body).Decode(&text); err != nil {
 		return nil, err
-	}
-
-	// Дешифруем полученные данные
-	if err := text.DecryptFields(c.cryptoService); err != nil {
-		return nil, fmt.Errorf("failed to decrypt text data: %w", err)
 	}
 
 	return &text, nil
@@ -570,23 +463,11 @@ func (c *APIClient) GetAllTexts(ctx context.Context) ([]entities.TextData, error
 		return nil, err
 	}
 
-	// Дешифруем все текстовые данные
-	for i := range texts {
-		if err := texts[i].DecryptFields(c.cryptoService); err != nil {
-			return nil, fmt.Errorf("failed to decrypt text %s: %w", texts[i].ID, err)
-		}
-	}
-
 	return texts, nil
 }
 
 // UpdateText - обновить текстовые данные
 func (c *APIClient) UpdateText(ctx context.Context, entity *entities.TextData) (*entities.TextData, error) {
-	// Шифруем entity перед отправкой
-	if err := entity.EncryptFields(c.cryptoService); err != nil {
-		return nil, fmt.Errorf("failed to encrypt text data: %w", err)
-	}
-
 	jsonData, err := json.Marshal(entity)
 	if err != nil {
 		return nil, err
@@ -611,11 +492,6 @@ func (c *APIClient) UpdateText(ctx context.Context, entity *entities.TextData) (
 	var updatedTextData entities.TextData
 	if err := json.NewDecoder(resp.Body).Decode(&updatedTextData); err != nil {
 		return nil, err
-	}
-
-	// Дешифруем полученные данные
-	if err := updatedTextData.DecryptFields(c.cryptoService); err != nil {
-		return nil, fmt.Errorf("failed to decrypt text data: %w", err)
 	}
 
 	return &updatedTextData, nil
