@@ -27,7 +27,7 @@ var testUsers = map[string]string{
 	"user3": "password789",
 }
 
-// getTestData возвращает тестовые данные
+// getTestData - возвращает тестовые данные
 func getTestData() struct {
 	binary      dtos.NewBinaryData
 	card        dtos.NewCardInformation
@@ -63,7 +63,7 @@ func getTestData() struct {
 	}
 }
 
-// createTestHandlerAndRouter создает тестовый хэндлер и роутер
+// createTestHandlerAndRouter - создает тестовый хэндлер и роутер
 func createTestHandlerAndRouter() (*chi.Mux, *inmemory.DatabaseManager) {
 	dbManager := inmemory.NewDatabaseManager()
 	service := services.NewStorageService(
@@ -144,7 +144,7 @@ func createTestRequest(method, url string, body interface{}, authRequired bool, 
 	return req
 }
 
-// registerTestUser регистрирует пользователя через роутер
+// registerTestUser - регистрирует пользователя через роутер
 func registerTestUser(t *testing.T, router *chi.Mux, login, password string) {
 	newUser := dtos.NewUser{
 		Login:    login,
@@ -158,7 +158,7 @@ func registerTestUser(t *testing.T, router *chi.Mux, login, password string) {
 	require.Equal(t, http.StatusOK, w.Code, "Failed to register user %s", login)
 }
 
-// createBinary создает бинарные данные через роутер
+// createBinary - создает бинарные данные через роутер
 func createBinary(t *testing.T, router *chi.Mux, userLogin string, data dtos.NewBinaryData) entities.BinaryData {
 	req := createTestRequest("POST", "/api/user/binaries", data, true, userLogin)
 	w := httptest.NewRecorder()
@@ -172,7 +172,7 @@ func createBinary(t *testing.T, router *chi.Mux, userLogin string, data dtos.New
 	return response
 }
 
-// createCard создает данные карты через роутер
+// createCard - создает данные карты через роутер
 func createCard(t *testing.T, router *chi.Mux, userLogin string, data dtos.NewCardInformation) entities.CardInformation {
 	req := createTestRequest("POST", "/api/user/card", data, true, userLogin)
 	w := httptest.NewRecorder()
@@ -186,7 +186,7 @@ func createCard(t *testing.T, router *chi.Mux, userLogin string, data dtos.NewCa
 	return response
 }
 
-// createCredentials создает учетные данные через роутер
+// createCredentials - создает учетные данные через роутер
 func createCredentials(t *testing.T, router *chi.Mux, userLogin string, data dtos.NewCredentials) entities.Credentials {
 	req := createTestRequest("POST", "/api/user/credentials", data, true, userLogin)
 	w := httptest.NewRecorder()
@@ -200,7 +200,7 @@ func createCredentials(t *testing.T, router *chi.Mux, userLogin string, data dto
 	return response
 }
 
-// createText создает текстовые данные через роутер
+// createText - создает текстовые данные через роутер
 func createText(t *testing.T, router *chi.Mux, userLogin string, data dtos.NewTextData) entities.TextData {
 	req := createTestRequest("POST", "/api/user/texts", data, true, userLogin)
 	w := httptest.NewRecorder()

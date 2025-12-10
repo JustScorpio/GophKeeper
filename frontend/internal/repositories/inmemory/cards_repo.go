@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/JustScorpio/GophKeeper/frontend/internal/models/entities"
 )
@@ -64,11 +63,6 @@ func (r *InMemoryCardsRepo) Create(ctx context.Context, entity *entities.CardInf
 func (r *InMemoryCardsRepo) Update(ctx context.Context, entity *entities.CardInformation) (*entities.CardInformation, error) {
 	if entity == nil {
 		return nil, errors.New("entity cannot be nil")
-	}
-
-	// Валидация даты
-	if _, err := time.Parse("01/06", entity.ExpirationDate); err != nil {
-		return nil, fmt.Errorf("invalid expiration date format, expected MM/YY: %w", err)
 	}
 
 	// Проверяем существование

@@ -9,7 +9,7 @@ type Credentials struct {
 	Password string `json:"password"`
 }
 
-// EncryptFields - шифрует только метаданные (логин и пароль не шифруются)
+// EncryptFields - шифрует все поля
 func (c *Credentials) EncryptFields(cryptoService *crypto.CryptoService) error {
 	if c.Metadata != "" {
 		encryptedMetadata, err := cryptoService.Encrypt(c.Metadata)
@@ -19,10 +19,26 @@ func (c *Credentials) EncryptFields(cryptoService *crypto.CryptoService) error {
 		c.Metadata = encryptedMetadata
 	}
 
+	if c.Login != "" {
+		encryptedData, err := cryptoService.Encrypt(c.Login)
+		if err != nil {
+			return err
+		}
+		c.Login = encryptedData
+	}
+
+	if c.Password != "" {
+		encryptedData, err := cryptoService.Encrypt(c.Password)
+		if err != nil {
+			return err
+		}
+		c.Password = encryptedData
+	}
+
 	return nil
 }
 
-// DecryptFields - дешифрует только метаданные
+// DecryptFields - дешифрует все поля
 func (c *Credentials) DecryptFields(cryptoService *crypto.CryptoService) error {
 	if c.Metadata != "" {
 		decryptedMetadata, err := cryptoService.Decrypt(c.Metadata)
@@ -30,6 +46,22 @@ func (c *Credentials) DecryptFields(cryptoService *crypto.CryptoService) error {
 			return err
 		}
 		c.Metadata = decryptedMetadata
+	}
+
+	if c.Login != "" {
+		decryptedMetadata, err := cryptoService.Decrypt(c.Login)
+		if err != nil {
+			return err
+		}
+		c.Login = decryptedMetadata
+	}
+
+	if c.Password != "" {
+		decryptedMetadata, err := cryptoService.Decrypt(c.Password)
+		if err != nil {
+			return err
+		}
+		c.Password = decryptedMetadata
 	}
 
 	return nil

@@ -67,7 +67,10 @@ func NewServiceUnavailableError(err error) error {
 }
 
 var (
-	AlreadyExistsError      = NewAlreadyExistsError(errors.New("entity already exists"))
+	//AlreadyExistsError - entity already exists
+	AlreadyExistsError = NewAlreadyExistsError(errors.New("entity already exists"))
+	//ServiceUnavailableError - service is shutting down
 	ServiceUnavailableError = NewServiceUnavailableError(errors.New("service is shutting down"))
-	UnsupportedOperation    = NewNotAllowedError(errors.New("method is not allowed"))
+	//UnsupportedOperation - method is not allowed
+	UnsupportedOperation = NewNotAllowedError(errors.New("method is not allowed"))
 )

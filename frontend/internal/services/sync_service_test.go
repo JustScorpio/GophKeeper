@@ -19,16 +19,19 @@ type MockSyncAPIClient struct {
 	mock.Mock
 }
 
+// Register - регистрация пользователя
 func (m *MockSyncAPIClient) Register(ctx context.Context, login, password string) error {
 	args := m.Called(ctx, login, password)
 	return args.Error(0)
 }
 
+// Login - аутентификация пользователя
 func (m *MockSyncAPIClient) Login(ctx context.Context, login, password string) error {
 	args := m.Called(ctx, login, password)
 	return args.Error(0)
 }
 
+// CreateBinary - создать бинарные данные
 func (m *MockSyncAPIClient) CreateBinary(ctx context.Context, dto *dtos.NewBinaryData) (*entities.BinaryData, error) {
 	args := m.Called(ctx, dto)
 	if args.Get(0) == nil {
@@ -37,6 +40,7 @@ func (m *MockSyncAPIClient) CreateBinary(ctx context.Context, dto *dtos.NewBinar
 	return args.Get(0).(*entities.BinaryData), args.Error(1)
 }
 
+// GetAllBinaries - получить все бинарные данные
 func (m *MockSyncAPIClient) GetAllBinaries(ctx context.Context) ([]entities.BinaryData, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
@@ -45,6 +49,7 @@ func (m *MockSyncAPIClient) GetAllBinaries(ctx context.Context) ([]entities.Bina
 	return args.Get(0).([]entities.BinaryData), args.Error(1)
 }
 
+// UpdateBinary - обновить бинарные данные
 func (m *MockSyncAPIClient) UpdateBinary(ctx context.Context, entity *entities.BinaryData) (*entities.BinaryData, error) {
 	args := m.Called(ctx, entity)
 	if args.Get(0) == nil {
@@ -53,11 +58,13 @@ func (m *MockSyncAPIClient) UpdateBinary(ctx context.Context, entity *entities.B
 	return args.Get(0).(*entities.BinaryData), args.Error(1)
 }
 
+// DeleteBinary - удалить бинарные данные
 func (m *MockSyncAPIClient) DeleteBinary(ctx context.Context, id string) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)
 }
 
+// CreateCard - создать данные карты
 func (m *MockSyncAPIClient) CreateCard(ctx context.Context, dto *dtos.NewCardInformation) (*entities.CardInformation, error) {
 	args := m.Called(ctx, dto)
 	if args.Get(0) == nil {
@@ -66,6 +73,7 @@ func (m *MockSyncAPIClient) CreateCard(ctx context.Context, dto *dtos.NewCardInf
 	return args.Get(0).(*entities.CardInformation), args.Error(1)
 }
 
+// GetAllCards - получить данные всех карт
 func (m *MockSyncAPIClient) GetAllCards(ctx context.Context) ([]entities.CardInformation, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
@@ -74,6 +82,7 @@ func (m *MockSyncAPIClient) GetAllCards(ctx context.Context) ([]entities.CardInf
 	return args.Get(0).([]entities.CardInformation), args.Error(1)
 }
 
+// UpdateCard - обновить данные карты
 func (m *MockSyncAPIClient) UpdateCard(ctx context.Context, entity *entities.CardInformation) (*entities.CardInformation, error) {
 	args := m.Called(ctx, entity)
 	if args.Get(0) == nil {
@@ -82,11 +91,13 @@ func (m *MockSyncAPIClient) UpdateCard(ctx context.Context, entity *entities.Car
 	return args.Get(0).(*entities.CardInformation), args.Error(1)
 }
 
+// DeleteCard - удалить данные карты
 func (m *MockSyncAPIClient) DeleteCard(ctx context.Context, id string) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)
 }
 
+// CreateCredentials - создать учётные данные
 func (m *MockSyncAPIClient) CreateCredentials(ctx context.Context, dto *dtos.NewCredentials) (*entities.Credentials, error) {
 	args := m.Called(ctx, dto)
 	if args.Get(0) == nil {
@@ -95,6 +106,7 @@ func (m *MockSyncAPIClient) CreateCredentials(ctx context.Context, dto *dtos.New
 	return args.Get(0).(*entities.Credentials), args.Error(1)
 }
 
+// GetAllCredentials - получить все учётные данные
 func (m *MockSyncAPIClient) GetAllCredentials(ctx context.Context) ([]entities.Credentials, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
@@ -103,6 +115,7 @@ func (m *MockSyncAPIClient) GetAllCredentials(ctx context.Context) ([]entities.C
 	return args.Get(0).([]entities.Credentials), args.Error(1)
 }
 
+// UpdateCredentials - обновить учётные данные
 func (m *MockSyncAPIClient) UpdateCredentials(ctx context.Context, entity *entities.Credentials) (*entities.Credentials, error) {
 	args := m.Called(ctx, entity)
 	if args.Get(0) == nil {
@@ -111,11 +124,13 @@ func (m *MockSyncAPIClient) UpdateCredentials(ctx context.Context, entity *entit
 	return args.Get(0).(*entities.Credentials), args.Error(1)
 }
 
+// DeleteCredentials - удалить учётные данные
 func (m *MockSyncAPIClient) DeleteCredentials(ctx context.Context, id string) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)
 }
 
+// CreateText - создать текстовые данные
 func (m *MockSyncAPIClient) CreateText(ctx context.Context, dto *dtos.NewTextData) (*entities.TextData, error) {
 	args := m.Called(ctx, dto)
 	if args.Get(0) == nil {
@@ -124,6 +139,7 @@ func (m *MockSyncAPIClient) CreateText(ctx context.Context, dto *dtos.NewTextDat
 	return args.Get(0).(*entities.TextData), args.Error(1)
 }
 
+// GetAllTexts - получить все текстовые данные
 func (m *MockSyncAPIClient) GetAllTexts(ctx context.Context) ([]entities.TextData, error) {
 	args := m.Called(ctx)
 	if args.Get(0) == nil {
@@ -132,6 +148,7 @@ func (m *MockSyncAPIClient) GetAllTexts(ctx context.Context) ([]entities.TextDat
 	return args.Get(0).([]entities.TextData), args.Error(1)
 }
 
+// UpdateText - обновить текстовые данные
 func (m *MockSyncAPIClient) UpdateText(ctx context.Context, entity *entities.TextData) (*entities.TextData, error) {
 	args := m.Called(ctx, entity)
 	if args.Get(0) == nil {
@@ -140,11 +157,13 @@ func (m *MockSyncAPIClient) UpdateText(ctx context.Context, entity *entities.Tex
 	return args.Get(0).(*entities.TextData), args.Error(1)
 }
 
+// DeleteText - удалить текстовые данные
 func (m *MockSyncAPIClient) DeleteText(ctx context.Context, id string) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)
 }
 
+// TestSyncService_Sync - тесты сервиса синхронизации данных
 func TestSyncService_Sync(t *testing.T) {
 	ctx := context.Background()
 
@@ -520,7 +539,7 @@ func TestSyncService_Sync(t *testing.T) {
 	})
 }
 
-// Тесты для edge cases
+// TestSyncService_EdgeCases - тесты для edge cases
 func TestSyncService_EdgeCases(t *testing.T) {
 	ctx := context.Background()
 

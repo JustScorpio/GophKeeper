@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestStorageService - Тесты сервиса хранилища
 func TestStorageService(t *testing.T) {
 	ctx := context.Background()
 

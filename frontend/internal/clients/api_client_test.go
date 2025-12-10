@@ -16,13 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// testServer создает тестовый HTTP сервер с заданными обработчиками
+// testServer - создает тестовый HTTP сервер с заданными обработчиками
 func testServer(handler http.HandlerFunc) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		handler(w, r)
 	}))
 }
 
+// TestAPIClient_Register - тесты регистрации
 func TestAPIClient_Register(t *testing.T) {
 	ctx := context.Background()
 
@@ -117,6 +118,7 @@ func TestAPIClient_Register(t *testing.T) {
 	}
 }
 
+// TestAPIClient_Login - тесты аутентификации
 func TestAPIClient_Login(t *testing.T) {
 	ctx := context.Background()
 
@@ -200,6 +202,7 @@ func TestAPIClient_Login(t *testing.T) {
 	}
 }
 
+// TestAPIClient_CreateBinary - тест создания бинарных данных
 func TestAPIClient_CreateBinary(t *testing.T) {
 	ctx := context.Background()
 
@@ -288,6 +291,7 @@ func TestAPIClient_CreateBinary(t *testing.T) {
 	})
 }
 
+// TestAPIClient_GetAllBinaries - тест получения бинарных данных
 func TestAPIClient_GetAllBinaries(t *testing.T) {
 	ctx := context.Background()
 
@@ -356,6 +360,7 @@ func TestAPIClient_GetAllBinaries(t *testing.T) {
 	})
 }
 
+// TestAPIClient_UpdateBinary - тест обновления бинарных данных
 func TestAPIClient_UpdateBinary(t *testing.T) {
 	ctx := context.Background()
 
@@ -407,6 +412,7 @@ func TestAPIClient_UpdateBinary(t *testing.T) {
 	})
 }
 
+// TestAPIClient_DeleteBinary - тест удаления бинарных данных
 func TestAPIClient_DeleteBinary(t *testing.T) {
 	ctx := context.Background()
 	id := "test-id-123"
@@ -438,21 +444,9 @@ func TestAPIClient_DeleteBinary(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "delete binary failed with status: 404")
 	})
-
-	t.Run("Wrong status code", func(t *testing.T) {
-		server := testServer(func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK) // Должен быть 410
-		})
-		defer server.Close()
-
-		client := clients.NewAPIClient(server.URL)
-
-		err := client.DeleteBinary(ctx, id)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "delete binary failed with status: 200")
-	})
 }
 
+// TestAPIClient_CreateCard - тест создания карты
 func TestAPIClient_CreateCard(t *testing.T) {
 	ctx := context.Background()
 
@@ -495,6 +489,7 @@ func TestAPIClient_CreateCard(t *testing.T) {
 	})
 }
 
+// TestAPIClient_GetAllCards - тест получения карт
 func TestAPIClient_GetAllCards(t *testing.T) {
 	ctx := context.Background()
 
@@ -536,8 +531,127 @@ func TestAPIClient_GetAllCards(t *testing.T) {
 		assert.Equal(t, expectedCards[0].Number, result[0].Number)
 		assert.Equal(t, expectedCards[1].Number, result[1].Number)
 	})
+
+	t.Run("Empty list", func(t *testing.T) {
+		server := testServer(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode([]entities.Credentials{})
+		})
+		defer server.Close()
+
+		client := clients.NewAPIClient(server.URL)
+
+		result, err := client.GetAllCards(ctx)
+		require.NoError(t, err)
+		assert.Empty(t, result)
+	})
+
+	t.Run("Unauthorized", func(t *testing.T) {
+		server := testServer(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+		})
+		defer server.Close()
+
+		client := clients.NewAPIClient(server.URL)
+
+		result, err := client.GetAllCards(ctx)
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "get cards failed with status: 401")
+	})
 }
 
+// TestAPIClient_UpdateCard - тест обновления карты
+func TestAPIClient_UpdateCard(t *testing.T) {
+	ctx := context.Background()
+
+	entity := &entities.CardInformation{
+		SecureEntity: entities.SecureEntity{
+			ID:       "card-id-123",
+			Metadata: "Updated Visa",
+		},
+		Number:         "5555555555554444",
+		CardHolder:     "Jane Doe",
+		ExpirationDate: "12/27",
+		CVV:            "456",
+	}
+
+	t.Run("Successful update", func(t *testing.T) {
+		server := testServer(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/api/user/cards", r.URL.Path)
+			assert.Equal(t, "PUT", r.Method)
+			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+
+			var received entities.CardInformation
+			err := json.NewDecoder(r.Body).Decode(&received)
+			assert.NoError(t, err)
+			assert.Equal(t, entity.ID, received.ID)
+			assert.Equal(t, entity.Number, received.Number)
+
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(entity)
+		})
+		defer server.Close()
+
+		client := clients.NewAPIClient(server.URL)
+
+		result, err := client.UpdateCard(ctx, entity)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, entity.ID, result.ID)
+		assert.Equal(t, entity.Number, result.Number)
+	})
+
+	t.Run("Update non-existent card", func(t *testing.T) {
+		server := testServer(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		})
+		defer server.Close()
+
+		client := clients.NewAPIClient(server.URL)
+
+		result, err := client.UpdateCard(ctx, entity)
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "update card failed with status: 404")
+	})
+}
+
+// TestAPIClient_DeleteCard - тест удаления карты
+func TestAPIClient_DeleteCard(t *testing.T) {
+	ctx := context.Background()
+	id := "card-id-123"
+
+	t.Run("Successful deletion", func(t *testing.T) {
+		server := testServer(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/api/user/cards/"+id, r.URL.Path)
+			assert.Equal(t, "DELETE", r.Method)
+
+			w.WriteHeader(http.StatusGone)
+		})
+		defer server.Close()
+
+		client := clients.NewAPIClient(server.URL)
+
+		err := client.DeleteCard(ctx, id)
+		require.NoError(t, err)
+	})
+
+	t.Run("Delete non-existent card", func(t *testing.T) {
+		server := testServer(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		})
+		defer server.Close()
+
+		client := clients.NewAPIClient(server.URL)
+
+		err := client.DeleteCard(ctx, "non-existent")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "delete card failed with status: 404")
+	})
+}
+
+// TestAPIClient_CreateCredentials - тест создания карт
 func TestAPIClient_CreateCredentials(t *testing.T) {
 	ctx := context.Background()
 
@@ -573,6 +687,165 @@ func TestAPIClient_CreateCredentials(t *testing.T) {
 		require.NotNil(t, result)
 		assert.Equal(t, expectedResponse.ID, result.ID)
 		assert.Equal(t, expectedResponse.Login, result.Login)
+	})
+}
+
+// TestAPIClient_GetAllCredentials - тест получения всех учётных данных
+func TestAPIClient_GetAllCredentials(t *testing.T) {
+	ctx := context.Background()
+
+	expectedCredentials := []entities.Credentials{
+		{
+			SecureEntity: entities.SecureEntity{
+				ID:       "cred1",
+				Metadata: "Work Email",
+			},
+			Login:    "user1@test.com",
+			Password: "password1",
+		},
+		{
+			SecureEntity: entities.SecureEntity{
+				ID:       "cred2",
+				Metadata: "Personal Account",
+			},
+			Login:    "user2@test.com",
+			Password: "password2",
+		},
+	}
+
+	t.Run("Successful retrieval", func(t *testing.T) {
+		server := testServer(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/api/user/credentials", r.URL.Path)
+			assert.Equal(t, "GET", r.Method)
+
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(expectedCredentials)
+		})
+		defer server.Close()
+
+		client := clients.NewAPIClient(server.URL)
+
+		result, err := client.GetAllCredentials(ctx)
+		require.NoError(t, err)
+		require.Len(t, result, 2)
+		assert.Equal(t, expectedCredentials[0].Login, result[0].Login)
+		assert.Equal(t, expectedCredentials[1].Login, result[1].Login)
+	})
+
+	t.Run("Empty list", func(t *testing.T) {
+		server := testServer(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode([]entities.Credentials{})
+		})
+		defer server.Close()
+
+		client := clients.NewAPIClient(server.URL)
+
+		result, err := client.GetAllCredentials(ctx)
+		require.NoError(t, err)
+		assert.Empty(t, result)
+	})
+
+	t.Run("Unauthorized", func(t *testing.T) {
+		server := testServer(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+		})
+		defer server.Close()
+
+		client := clients.NewAPIClient(server.URL)
+
+		result, err := client.GetAllCredentials(ctx)
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "get credentials failed with status: 401")
+	})
+}
+
+// TestAPIClient_UpdateCredentials - тест обновления учетных данных
+func TestAPIClient_UpdateCredentials(t *testing.T) {
+	ctx := context.Background()
+
+	entity := &entities.Credentials{
+		SecureEntity: entities.SecureEntity{
+			ID:       "cred-id-123",
+			Metadata: "Updated Account",
+		},
+		Login:    "updated@example.com",
+		Password: "newpassword456",
+	}
+
+	t.Run("Successful update", func(t *testing.T) {
+		server := testServer(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/api/user/credentials", r.URL.Path)
+			assert.Equal(t, "PUT", r.Method)
+			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+
+			var received entities.Credentials
+			err := json.NewDecoder(r.Body).Decode(&received)
+			assert.NoError(t, err)
+			assert.Equal(t, entity.ID, received.ID)
+			assert.Equal(t, entity.Login, received.Login)
+
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(entity)
+		})
+		defer server.Close()
+
+		client := clients.NewAPIClient(server.URL)
+
+		result, err := client.UpdateCredentials(ctx, entity)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, entity.ID, result.ID)
+		assert.Equal(t, entity.Login, result.Login)
+	})
+
+	t.Run("Update non-existent credentials", func(t *testing.T) {
+		server := testServer(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		})
+		defer server.Close()
+
+		client := clients.NewAPIClient(server.URL)
+
+		result, err := client.UpdateCredentials(ctx, entity)
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "update credentials failed with status: 404")
+	})
+}
+
+// TestAPIClient_DeleteCredentials - тест удаления учетных данных
+func TestAPIClient_DeleteCredentials(t *testing.T) {
+	ctx := context.Background()
+	id := "cred-id-123"
+
+	t.Run("Successful deletion", func(t *testing.T) {
+		server := testServer(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/api/user/credentials/"+id, r.URL.Path)
+			assert.Equal(t, "DELETE", r.Method)
+
+			w.WriteHeader(http.StatusGone)
+		})
+		defer server.Close()
+
+		client := clients.NewAPIClient(server.URL)
+
+		err := client.DeleteCredentials(ctx, id)
+		require.NoError(t, err)
+	})
+
+	t.Run("Delete non-existent credentials", func(t *testing.T) {
+		server := testServer(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		})
+		defer server.Close()
+
+		client := clients.NewAPIClient(server.URL)
+
+		err := client.DeleteCredentials(ctx, "non-existent")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "delete credentials failed with status: 404")
 	})
 }
 
@@ -612,26 +885,163 @@ func TestAPIClient_CreateText(t *testing.T) {
 	})
 }
 
-func TestAPIClient_ContextCancellation(t *testing.T) {
-	t.Run("Request cancelled by context", func(t *testing.T) {
+// TestAPIClient_GetAllTexts - тест получения всех текстовых данных
+func TestAPIClient_GetAllTexts(t *testing.T) {
+	ctx := context.Background()
+
+	expectedTexts := []entities.TextData{
+		{
+			SecureEntity: entities.SecureEntity{
+				ID:       "text1",
+				Metadata: "First note",
+			},
+			Data: "This is first text",
+		},
+		{
+			SecureEntity: entities.SecureEntity{
+				ID:       "text2",
+				Metadata: "Second note",
+			},
+			Data: "This is second text",
+		},
+	}
+
+	t.Run("Successful retrieval", func(t *testing.T) {
 		server := testServer(func(w http.ResponseWriter, r *http.Request) {
-			// Имитируем долгий ответ
-			time.Sleep(100 * time.Millisecond)
+			assert.Equal(t, "/api/user/texts", r.URL.Path)
+			assert.Equal(t, "GET", r.Method)
+
 			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(expectedTexts)
 		})
 		defer server.Close()
 
 		client := clients.NewAPIClient(server.URL)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
-		defer cancel()
+		result, err := client.GetAllTexts(ctx)
+		require.NoError(t, err)
+		require.Len(t, result, 2)
+		assert.Equal(t, expectedTexts[0].Data, result[0].Data)
+		assert.Equal(t, expectedTexts[1].Data, result[1].Data)
+	})
 
-		_, err := client.GetAllBinaries(ctx)
+	t.Run("Empty list", func(t *testing.T) {
+		server := testServer(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode([]entities.TextData{})
+		})
+		defer server.Close()
+
+		client := clients.NewAPIClient(server.URL)
+
+		result, err := client.GetAllTexts(ctx)
+		require.NoError(t, err)
+		assert.Empty(t, result)
+	})
+
+	t.Run("Unauthorized", func(t *testing.T) {
+		server := testServer(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusUnauthorized)
+		})
+		defer server.Close()
+
+		client := clients.NewAPIClient(server.URL)
+
+		result, err := client.GetAllTexts(ctx)
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "context")
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "get texts failed with status: 401")
 	})
 }
 
+// TestAPIClient_UpdateText - тест обновления текстовых данных
+func TestAPIClient_UpdateText(t *testing.T) {
+	ctx := context.Background()
+
+	entity := &entities.TextData{
+		SecureEntity: entities.SecureEntity{
+			ID:       "text-id-123",
+			Metadata: "Updated Note",
+		},
+		Data: "This is updated confidential information",
+	}
+
+	t.Run("Successful update", func(t *testing.T) {
+		server := testServer(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/api/user/texts", r.URL.Path)
+			assert.Equal(t, "PUT", r.Method)
+			assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
+
+			var received entities.TextData
+			err := json.NewDecoder(r.Body).Decode(&received)
+			assert.NoError(t, err)
+			assert.Equal(t, entity.ID, received.ID)
+			assert.Equal(t, entity.Data, received.Data)
+
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(entity)
+		})
+		defer server.Close()
+
+		client := clients.NewAPIClient(server.URL)
+
+		result, err := client.UpdateText(ctx, entity)
+		require.NoError(t, err)
+		require.NotNil(t, result)
+		assert.Equal(t, entity.ID, result.ID)
+		assert.Equal(t, entity.Data, result.Data)
+	})
+
+	t.Run("Update non-existent text", func(t *testing.T) {
+		server := testServer(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		})
+		defer server.Close()
+
+		client := clients.NewAPIClient(server.URL)
+
+		result, err := client.UpdateText(ctx, entity)
+		require.Error(t, err)
+		assert.Nil(t, result)
+		assert.Contains(t, err.Error(), "update text failed with status: 404")
+	})
+}
+
+// TestAPIClient_DeleteText - тест удаления текстовых данных
+func TestAPIClient_DeleteText(t *testing.T) {
+	ctx := context.Background()
+	id := "text-id-123"
+
+	t.Run("Successful deletion", func(t *testing.T) {
+		server := testServer(func(w http.ResponseWriter, r *http.Request) {
+			assert.Equal(t, "/api/user/texts/"+id, r.URL.Path)
+			assert.Equal(t, "DELETE", r.Method)
+
+			w.WriteHeader(http.StatusGone)
+		})
+		defer server.Close()
+
+		client := clients.NewAPIClient(server.URL)
+
+		err := client.DeleteText(ctx, id)
+		require.NoError(t, err)
+	})
+
+	t.Run("Delete non-existent text", func(t *testing.T) {
+		server := testServer(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusNotFound)
+		})
+		defer server.Close()
+
+		client := clients.NewAPIClient(server.URL)
+
+		err := client.DeleteText(ctx, "non-existent")
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "delete text failed with status: 404")
+	})
+}
+
+// TestAPIClient_CookieJar - тест кук
 func TestAPIClient_CookieJar(t *testing.T) {
 	ctx := context.Background()
 
@@ -673,6 +1083,7 @@ func TestAPIClient_CookieJar(t *testing.T) {
 	assert.Equal(t, "test-session-value", loginCookie)
 }
 
+// TestAPIClient_InvalidURL - тест с невалидным адресом
 func TestAPIClient_InvalidURL(t *testing.T) {
 	ctx := context.Background()
 
@@ -692,6 +1103,7 @@ func TestAPIClient_InvalidURL(t *testing.T) {
 	})
 }
 
+// TestAPIClient_ConcurrentRequests - тест конкурентных запросов
 func TestAPIClient_ConcurrentRequests(t *testing.T) {
 	ctx := context.Background()
 

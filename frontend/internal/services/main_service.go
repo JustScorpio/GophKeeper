@@ -10,6 +10,7 @@ import (
 	"github.com/JustScorpio/GophKeeper/frontend/internal/models/entities"
 )
 
+// GophkeeperService - главный сервис клиентской части приложения
 type GophkeeperService struct {
 	apiClient     clients.IAPIClient
 	localStorage  *StorageService
@@ -17,6 +18,7 @@ type GophkeeperService struct {
 	cryptoService *encryption.CryptoService
 }
 
+// NewGophkeeperService - создать главный сервис клиентской части приложения
 func NewGophkeeperService(
 	apiClient clients.IAPIClient,
 	localStorage *StorageService,
@@ -29,12 +31,18 @@ func NewGophkeeperService(
 	}
 }
 
+// SetEncryption - установить сервис шифрование
 func (s *GophkeeperService) SetEncryption(password string) error {
 	s.cryptoService = encryption.NewCryptoService(password)
 	return nil
 }
 
-// Auth methods
+// IsEncryptionSet - проверить установлен ли сервис шифрование
+func (s *GophkeeperService) IsEncryptionSet() bool {
+	return s.cryptoService != nil
+}
+
+// Register - регистрация
 func (s *GophkeeperService) Register(ctx context.Context, login, password string) error {
 	err := s.apiClient.Register(ctx, login, password)
 	if err != nil {
@@ -44,6 +52,7 @@ func (s *GophkeeperService) Register(ctx context.Context, login, password string
 	return s.SetEncryption(password)
 }
 
+// Login - аутентификация
 func (s *GophkeeperService) Login(ctx context.Context, login, password string) error {
 	err := s.apiClient.Login(ctx, login, password)
 	if err != nil {

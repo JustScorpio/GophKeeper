@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/JustScorpio/GophKeeper/backend/internal/customcontext"
 	"github.com/JustScorpio/GophKeeper/backend/internal/models/dtos"
@@ -77,11 +76,6 @@ func (r *InMemoryCardsRepo) Create(ctx context.Context, dto *dtos.NewCardInforma
 		return nil, errors.New("user ID is required")
 	}
 
-	// Валидация даты
-	if _, err := time.Parse("01/06", dto.ExpirationDate); err != nil {
-		return nil, fmt.Errorf("invalid expiration date format, expected MM/YY: %w", err)
-	}
-
 	id := r.generateID()
 	card := entities.CardInformation{
 		Number:         dto.Number,
@@ -104,11 +98,6 @@ func (r *InMemoryCardsRepo) Update(ctx context.Context, entity *entities.CardInf
 	userID := customcontext.GetUserID(ctx)
 	if userID == "" {
 		return nil, errors.New("user ID is required")
-	}
-
-	// Валидация даты
-	if _, err := time.Parse("01/06", entity.ExpirationDate); err != nil {
-		return nil, fmt.Errorf("invalid expiration date format, expected MM/YY: %w", err)
 	}
 
 	// Проверяем существование и права

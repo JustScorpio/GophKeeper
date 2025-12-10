@@ -29,13 +29,14 @@ var (
 //go:embed config.json
 var configContent []byte
 
-// UNDONE: а менеджере паролей база должна быть запаролена
+// UNDONE: база должна быть запаролена
 // DBConfiguration - из confog.json
 type AppConfiguration struct {
 	DbPath     string `json:"db_path"`
 	ServerAddr string `json:"server_addr"`
 }
 
+// App - приложение
 type App struct {
 	dbManager    *sqlite.DatabaseManager
 	apiClient    clients.IAPIClient
@@ -46,6 +47,7 @@ type App struct {
 	currentUser  string
 }
 
+// main - точка входа
 func main() {
 	fmt.Printf("%s v.%s %s\n", "GophKeeper", buildVersion, buildDate)
 	fmt.Println("==========================")
@@ -57,6 +59,7 @@ func main() {
 	}
 	defer app.shutdown()
 
+	// UNDONE
 	// // Обработка сигналов для graceful shutdown
 	// sigChan := make(chan os.Signal, 1)
 	// signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
@@ -71,6 +74,7 @@ func main() {
 	app.run()
 }
 
+// initializeApp - инициализация приложения
 func initializeApp() (*App, error) {
 	var conf AppConfiguration
 	if err := json.Unmarshal(configContent, &conf); err != nil {
@@ -111,6 +115,7 @@ func initializeApp() (*App, error) {
 	}, nil
 }
 
+// (not yet graceful) shutdown - выход из приложения
 func (a *App) shutdown() {
 	if a.dbManager != nil {
 		a.dbManager.Close()
@@ -118,6 +123,7 @@ func (a *App) shutdown() {
 	fmt.Println("\nGoodbye!")
 }
 
+// run - запуск приложения
 func (a *App) run() {
 	reader := bufio.NewReader(os.Stdin)
 
@@ -167,6 +173,7 @@ func (a *App) run() {
 	}
 }
 
+// showMainMenu - вывод главного меню
 func (a *App) showMainMenu() {
 	fmt.Println("\n=== Main Menu ===")
 	if a.isLoggedIn {
@@ -187,6 +194,7 @@ func (a *App) showMainMenu() {
 	}
 }
 
+// showHelp - вывод подсказки
 func (a *App) showHelp() {
 	fmt.Println("\n=== Available Commands ===")
 	fmt.Println("login    - Login to your account")
@@ -198,6 +206,7 @@ func (a *App) showHelp() {
 	fmt.Println("help     - Show this help message")
 }
 
+// handleLogin - обработка аутентификации в приложении
 func (a *App) handleLogin(reader *bufio.Reader) {
 	fmt.Println("\n=== Login ===")
 
@@ -225,6 +234,7 @@ func (a *App) handleLogin(reader *bufio.Reader) {
 	fmt.Printf("Welcome, %s!\n", username)
 }
 
+// handleRegister - обработка регистрации в приложении
 func (a *App) handleRegister(reader *bufio.Reader) {
 	fmt.Println("\n=== Register ===")
 
@@ -252,6 +262,7 @@ func (a *App) handleRegister(reader *bufio.Reader) {
 	fmt.Printf("Account created. Welcome, %s!\n", username)
 }
 
+// handleLogout - обработка выхода из приложении
 func (a *App) handleLogout() {
 	fmt.Printf("\nLogging out %s...\n", a.currentUser)
 	a.isLoggedIn = false
@@ -259,6 +270,7 @@ func (a *App) handleLogout() {
 	fmt.Println("Logged out successfully.")
 }
 
+// handleSync - обработка синхронизации данных с сервером
 func (a *App) handleSync() {
 	fmt.Println("\n=== Sync Data ===")
 
@@ -275,6 +287,7 @@ func (a *App) handleSync() {
 	}
 }
 
+// handleDataMenu - обработка работы с данными
 func (a *App) handleDataMenu(reader *bufio.Reader) {
 	for {
 		fmt.Println("\n=== Data Management ===")
@@ -305,6 +318,7 @@ func (a *App) handleDataMenu(reader *bufio.Reader) {
 	}
 }
 
+// handleBinaryData - обработка работы с бинарными данными
 func (a *App) handleBinaryData(reader *bufio.Reader) {
 	for {
 		fmt.Println("\n=== Binary Data ===")
@@ -338,6 +352,7 @@ func (a *App) handleBinaryData(reader *bufio.Reader) {
 	}
 }
 
+// listBinaries - вывод списка бинарных данных
 func (a *App) listBinaries() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -360,6 +375,7 @@ func (a *App) listBinaries() {
 	}
 }
 
+// createBinary - создание бинарных данных
 func (a *App) createBinary(reader *bufio.Reader) {
 	fmt.Println("\n=== Create Binary Data ===")
 
@@ -408,6 +424,7 @@ func (a *App) createBinary(reader *bufio.Reader) {
 	}
 }
 
+// viewBinary - просмотр бинарных данных
 func (a *App) viewBinary(reader *bufio.Reader) {
 	fmt.Print("\nEnter binary ID: ")
 	id, _ := reader.ReadString('\n')
@@ -449,6 +466,7 @@ func (a *App) viewBinary(reader *bufio.Reader) {
 	}
 }
 
+// updateBinary - изменение бинарных данных
 func (a *App) updateBinary(reader *bufio.Reader) {
 	fmt.Print("\nEnter binary ID to update: ")
 	id, _ := reader.ReadString('\n')
@@ -563,6 +581,7 @@ func (a *App) updateBinary(reader *bufio.Reader) {
 	}
 }
 
+// deleteBinary - удаление бинарных данных
 func (a *App) deleteBinary(reader *bufio.Reader) {
 	fmt.Print("\nEnter binary ID to delete: ")
 	id, _ := reader.ReadString('\n')
@@ -590,6 +609,7 @@ func (a *App) deleteBinary(reader *bufio.Reader) {
 	}
 }
 
+// handleCardData - работа с картами
 func (a *App) handleCardData(reader *bufio.Reader) {
 	for {
 		fmt.Println("\n=== Card Data Management ===")
@@ -623,6 +643,7 @@ func (a *App) handleCardData(reader *bufio.Reader) {
 	}
 }
 
+// listCards - просмотр карт
 func (a *App) listCards() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -641,20 +662,12 @@ func (a *App) listCards() {
 	fmt.Println("\n=== Card List ===")
 	for i, card := range cards {
 		// Маскируем номер карты для безопасности
-		maskedNumber := maskCardNumber(card.Number)
 		fmt.Printf("%d. ID: %s, Card: %s (%s), Expires: %s\n",
-			i+1, card.ID, maskedNumber, card.CardHolder, card.ExpirationDate)
+			i+1, card.ID, card.Number, card.CardHolder, card.ExpirationDate)
 	}
 }
 
-func maskCardNumber(number string) string {
-	if len(number) < 4 {
-		return number
-	}
-	lastFour := number[len(number)-4:]
-	return "**** **** **** " + lastFour
-}
-
+// createCard - создать карту
 func (a *App) createCard(reader *bufio.Reader) {
 	fmt.Println("\n=== Create New Card ===")
 
@@ -699,6 +712,7 @@ func (a *App) createCard(reader *bufio.Reader) {
 	}
 }
 
+// viewCard - посмотреть карту
 func (a *App) viewCard(reader *bufio.Reader) {
 	fmt.Print("\nEnter card ID: ")
 	id, _ := reader.ReadString('\n')
@@ -720,13 +734,14 @@ func (a *App) viewCard(reader *bufio.Reader) {
 
 	fmt.Println("\n=== Card Details ===")
 	fmt.Printf("ID: %s\n", card.ID)
-	fmt.Printf("Card number: %s\n", maskCardNumber(card.Number))
+	fmt.Printf("Card number: %s\n", card.Number)
 	fmt.Printf("Card holder: %s\n", card.CardHolder)
 	fmt.Printf("Expiration date: %s\n", card.ExpirationDate)
 	fmt.Printf("CVV: %s\n", card.CVV)
 	fmt.Printf("Metadata: %s\n", card.Metadata)
 }
 
+// updateCard - изменить карту
 func (a *App) updateCard(reader *bufio.Reader) {
 	fmt.Print("\nEnter card ID to update: ")
 	id, _ := reader.ReadString('\n')
@@ -807,6 +822,7 @@ func (a *App) updateCard(reader *bufio.Reader) {
 	}
 }
 
+// deleteCard - удалить карту
 func (a *App) deleteCard(reader *bufio.Reader) {
 	fmt.Print("\nEnter card ID to delete: ")
 	id, _ := reader.ReadString('\n')
@@ -834,6 +850,7 @@ func (a *App) deleteCard(reader *bufio.Reader) {
 	}
 }
 
+// handleCredentials - работа с учётными данными
 func (a *App) handleCredentials(reader *bufio.Reader) {
 	for {
 		fmt.Println("\n=== Credentials Management ===")
@@ -867,6 +884,7 @@ func (a *App) handleCredentials(reader *bufio.Reader) {
 	}
 }
 
+// listCredentials - просмотр учётных данных
 func (a *App) listCredentials() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -889,6 +907,7 @@ func (a *App) listCredentials() {
 	}
 }
 
+// createCredentials - создать учётные данные
 func (a *App) createCredentials(reader *bufio.Reader) {
 	fmt.Println("\n=== Create New Credentials ===")
 
@@ -923,6 +942,7 @@ func (a *App) createCredentials(reader *bufio.Reader) {
 	}
 }
 
+// viewCredentials - просмотреть учётные данные
 func (a *App) viewCredentials(reader *bufio.Reader) {
 	fmt.Print("\nEnter credentials ID: ")
 	id, _ := reader.ReadString('\n')
@@ -949,6 +969,7 @@ func (a *App) viewCredentials(reader *bufio.Reader) {
 	fmt.Printf("Metadata: %s\n", creds.Metadata)
 }
 
+// updateCredentials - обновить учётные данные
 func (a *App) updateCredentials(reader *bufio.Reader) {
 	fmt.Print("\nEnter credentials ID to update: ")
 	id, _ := reader.ReadString('\n')
@@ -1012,6 +1033,7 @@ func (a *App) updateCredentials(reader *bufio.Reader) {
 	}
 }
 
+// deleteCredentials - удалить учётные данные
 func (a *App) deleteCredentials(reader *bufio.Reader) {
 	fmt.Print("\nEnter credentials ID to delete: ")
 	id, _ := reader.ReadString('\n')
@@ -1039,6 +1061,7 @@ func (a *App) deleteCredentials(reader *bufio.Reader) {
 	}
 }
 
+// handleTextData - работа с текстовыми данными
 func (a *App) handleTextData(reader *bufio.Reader) {
 	for {
 		fmt.Println("\n=== Text Data Management ===")
@@ -1072,6 +1095,7 @@ func (a *App) handleTextData(reader *bufio.Reader) {
 	}
 }
 
+// listTexts - просмотр текстовых данных
 func (a *App) listTexts() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -1099,6 +1123,7 @@ func (a *App) listTexts() {
 	}
 }
 
+// createText - создать текстовые данные
 func (a *App) createText(reader *bufio.Reader) {
 	fmt.Println("\n=== Create New Text ===")
 
@@ -1136,6 +1161,7 @@ func (a *App) createText(reader *bufio.Reader) {
 	}
 }
 
+// viewText - просмотреть текстовые данные
 func (a *App) viewText(reader *bufio.Reader) {
 	fmt.Print("\nEnter text ID: ")
 	id, _ := reader.ReadString('\n')
@@ -1161,6 +1187,7 @@ func (a *App) viewText(reader *bufio.Reader) {
 	fmt.Printf("\n=== Content ===\n%s\n", text.Data)
 }
 
+// updateText - изменить текстовые данные
 func (a *App) updateText(reader *bufio.Reader) {
 	fmt.Print("\nEnter text ID to update: ")
 	id, _ := reader.ReadString('\n')
@@ -1260,6 +1287,7 @@ func (a *App) updateText(reader *bufio.Reader) {
 	}
 }
 
+// deleteText - удалить текстовые данные
 func (a *App) deleteText(reader *bufio.Reader) {
 	fmt.Print("\nEnter text ID to delete: ")
 	id, _ := reader.ReadString('\n')

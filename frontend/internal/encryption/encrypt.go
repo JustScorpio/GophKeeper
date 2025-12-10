@@ -10,16 +10,19 @@ import (
 	"io"
 )
 
+// CryptoService - сервис шифрования
 type CryptoService struct {
 	key []byte
 }
 
+// NewCryptoService - создать сервис шифрования
 func NewCryptoService(password string) *CryptoService {
 	// Используем SHA256 для получения ключа фиксированной длины из любого пароля
 	hash := sha256.Sum256([]byte(password))
 	return &CryptoService{key: hash[:]}
 }
 
+// Encrypt - зашифровать данные
 func (c *CryptoService) Encrypt(plaintext string) (string, error) {
 	if plaintext == "" {
 		return "", nil
@@ -44,6 +47,7 @@ func (c *CryptoService) Encrypt(plaintext string) (string, error) {
 	return base64.StdEncoding.EncodeToString(ciphertext), nil
 }
 
+// Decrypt - расшифровать данные
 func (c *CryptoService) Decrypt(encrypted string) (string, error) {
 	if encrypted == "" {
 		return "", nil
@@ -77,6 +81,7 @@ func (c *CryptoService) Decrypt(encrypted string) (string, error) {
 	return string(plaintext), nil
 }
 
+// EncryptBytes - зашифровать массив байт
 func (c *CryptoService) EncryptBytes(data []byte) ([]byte, error) {
 	if len(data) == 0 {
 		return []byte{}, nil
@@ -101,6 +106,7 @@ func (c *CryptoService) EncryptBytes(data []byte) ([]byte, error) {
 	return ciphertext, nil
 }
 
+// DecryptBytes - расшифровать массив байт
 func (c *CryptoService) DecryptBytes(data []byte) ([]byte, error) {
 	if len(data) == 0 {
 		return []byte{}, nil

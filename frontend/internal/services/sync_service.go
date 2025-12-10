@@ -8,6 +8,7 @@ import (
 	"github.com/JustScorpio/GophKeeper/frontend/internal/models/entities"
 )
 
+// SyncService - сервис синхронизации данных
 type SyncService struct {
 	apiClient    clients.IAPIClient
 	localStorage *StorageService

@@ -9,7 +9,7 @@ type NewCredentials struct {
 	Password string `json:"password"`
 }
 
-// EncryptFields - шифрует только метаданные (логин и пароль не шифруются)
+// EncryptFields - шифрует все поля
 func (d *NewCredentials) EncryptFields(cryptoService *crypto.CryptoService) error {
 	if d.Metadata != "" {
 		encryptedMetadata, err := cryptoService.Encrypt(d.Metadata)
@@ -17,6 +17,22 @@ func (d *NewCredentials) EncryptFields(cryptoService *crypto.CryptoService) erro
 			return err
 		}
 		d.Metadata = encryptedMetadata
+	}
+
+	if d.Login != "" {
+		encryptedData, err := cryptoService.Encrypt(d.Login)
+		if err != nil {
+			return err
+		}
+		d.Login = encryptedData
+	}
+
+	if d.Password != "" {
+		encryptedData, err := cryptoService.Encrypt(d.Password)
+		if err != nil {
+			return err
+		}
+		d.Password = encryptedData
 	}
 
 	return nil

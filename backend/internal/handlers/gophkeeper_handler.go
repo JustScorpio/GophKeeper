@@ -15,17 +15,19 @@ import (
 	"github.com/go-chi/chi"
 )
 
+// GophkeeperHandler - главный сервис
 type GophkeeperHandler struct {
 	service *services.StorageService
 }
 
+// GophkeeperHandler - создать главный сервис
 func NewGophkeeperHandler(service *services.StorageService) *GophkeeperHandler {
 	return &GophkeeperHandler{
 		service: service,
 	}
 }
 
-// Регистрация пользователя
+// Register - регистрация пользователя
 func (h *GophkeeperHandler) Register(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -83,7 +85,7 @@ func (h *GophkeeperHandler) Register(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-// Аутентификация пользователя
+// Login - аутентификация пользователя
 func (h *GophkeeperHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
