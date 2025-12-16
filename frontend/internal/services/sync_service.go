@@ -42,29 +42,45 @@ func (s *SyncService) Sync(ctx context.Context) error {
 
 // syncBinaries - синхронизировать бинарные данные
 func (s *SyncService) syncBinaries(ctx context.Context) error {
+	// Данные с сервера
 	serverBinaries, err := s.apiClient.GetAllBinaries(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("get server binaries: %w", err)
 	}
 
+	// Локальные данные
 	localBinaries, err := s.localStorage.GetAllBinaries(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("get local binaries: %w", err)
 	}
 
-	for _, local := range localBinaries {
-		if err := s.localStorage.DeleteBinary(ctx, local.ID); err != nil {
-			return err
-		}
-	}
-
+	// Создаём мапу серверных сущностей
+	serverMap := make(map[string]entities.BinaryData, len(serverBinaries))
 	for _, binary := range serverBinaries {
-		dto := &entities.BinaryData{
-			Data:         binary.Data,
-			SecureEntity: entities.SecureEntity{ID: binary.ID, Metadata: binary.Metadata},
+		serverMap[binary.ID] = binary
+	}
+
+	// Удаляем локальные сущности, которых нет на сервере или которые изменены
+	for _, localBinary := range localBinaries {
+		id := localBinary.ID
+		serverBinary, existsOnServer := serverMap[id]
+
+		if existsOnServer && entities.Equals(&localBinary, &serverBinary) {
+			// Сущность не изменилась - удаляем из serverMap, чтобы не создавать заново
+			delete(serverMap, id)
+			continue
 		}
-		if _, err := s.localStorage.CreateBinary(ctx, dto); err != nil {
-			return err
+
+		// Если сущности нет на сервере либо она изменилась - удаляем локально
+		if err := s.localStorage.DeleteBinary(ctx, id); err != nil {
+			return fmt.Errorf("delete binary %s: %w", id, err)
+		}
+	}
+
+	// Создаем сущности которые есть на сервере, но нет локально
+	for _, serverBinary := range serverMap {
+		if _, err := s.localStorage.CreateBinary(ctx, &serverBinary); err != nil {
+			return fmt.Errorf("create binary %s: %w", serverBinary.ID, err)
 		}
 	}
 
@@ -73,32 +89,45 @@ func (s *SyncService) syncBinaries(ctx context.Context) error {
 
 // syncCards - синхронизировать данные карт
 func (s *SyncService) syncCards(ctx context.Context) error {
+	// Данные с сервера
 	serverCards, err := s.apiClient.GetAllCards(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("get server cards: %w", err)
 	}
 
+	// Локальные данные
 	localCards, err := s.localStorage.GetAllCards(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("get local cards: %w", err)
 	}
 
-	for _, local := range localCards {
-		if err := s.localStorage.DeleteCard(ctx, local.ID); err != nil {
-			return err
-		}
-	}
-
+	// Создаём мапу серверных сущностей
+	serverMap := make(map[string]entities.CardInformation, len(serverCards))
 	for _, card := range serverCards {
-		dto := &entities.CardInformation{
-			Number:         card.Number,
-			CardHolder:     card.CardHolder,
-			ExpirationDate: card.ExpirationDate,
-			CVV:            card.CVV,
-			SecureEntity:   entities.SecureEntity{ID: card.ID, Metadata: card.Metadata},
+		serverMap[card.ID] = card
+	}
+
+	// Удаляем локальные сущности, которых нет на сервере или которые изменены
+	for _, localCard := range localCards {
+		id := localCard.ID
+		serverCard, existsOnServer := serverMap[id]
+
+		if existsOnServer && entities.Equals(&localCard, &serverCard) {
+			// Сущность не изменилась - удаляем из serverMap, чтобы не создавать заново
+			delete(serverMap, id)
+			continue
 		}
-		if _, err := s.localStorage.CreateCard(ctx, dto); err != nil {
-			return err
+
+		// Если сущности нет на сервере либо она изменилась - удаляем локально
+		if err := s.localStorage.DeleteCard(ctx, id); err != nil {
+			return fmt.Errorf("delete card %s: %w", id, err)
+		}
+	}
+
+	// Создаем сущности которые есть на сервере, но нет локально
+	for _, serverCard := range serverMap {
+		if _, err := s.localStorage.CreateCard(ctx, &serverCard); err != nil {
+			return fmt.Errorf("create card %s: %w", serverCard.ID, err)
 		}
 	}
 
@@ -107,30 +136,45 @@ func (s *SyncService) syncCards(ctx context.Context) error {
 
 // syncCredentials - синхронизировать учётные данные
 func (s *SyncService) syncCredentials(ctx context.Context) error {
+	// Данные с сервера
 	serverCredentials, err := s.apiClient.GetAllCredentials(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("get server credentials: %w", err)
 	}
 
+	// Локальные данные
 	localCredentials, err := s.localStorage.GetAllCredentials(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("get local credentials: %w", err)
 	}
 
-	for _, local := range localCredentials {
-		if err := s.localStorage.DeleteCredentials(ctx, local.ID); err != nil {
-			return err
-		}
-	}
-
+	// Создаём мапу серверных сущностей
+	serverMap := make(map[string]entities.Credentials, len(serverCredentials))
 	for _, cred := range serverCredentials {
-		dto := &entities.Credentials{
-			Login:        cred.Login,
-			Password:     cred.Password,
-			SecureEntity: entities.SecureEntity{ID: cred.ID, Metadata: cred.Metadata},
+		serverMap[cred.ID] = cred
+	}
+
+	// Удаляем локальные сущности, которых нет на сервере или которые изменены
+	for _, localCred := range localCredentials {
+		id := localCred.ID
+		serverCred, existsOnServer := serverMap[id]
+
+		if existsOnServer && entities.Equals(&localCred, &serverCred) {
+			// Сущность не изменилась - удаляем из serverMap, чтобы не создавать заново
+			delete(serverMap, id)
+			continue
 		}
-		if _, err := s.localStorage.CreateCredentials(ctx, dto); err != nil {
-			return err
+
+		// Если сущности нет на сервере либо она изменилась - удаляем локально
+		if err := s.localStorage.DeleteCredentials(ctx, id); err != nil {
+			return fmt.Errorf("delete credentials %s: %w", id, err)
+		}
+	}
+
+	// Создаем сущности которые есть на сервере, но нет локально
+	for _, serverCred := range serverMap {
+		if _, err := s.localStorage.CreateCredentials(ctx, &serverCred); err != nil {
+			return fmt.Errorf("create credentials %s: %w", serverCred.ID, err)
 		}
 	}
 
@@ -139,29 +183,45 @@ func (s *SyncService) syncCredentials(ctx context.Context) error {
 
 // syncTexts - синхронизировать текстовые данные
 func (s *SyncService) syncTexts(ctx context.Context) error {
+	// Данные с сервера
 	serverTexts, err := s.apiClient.GetAllTexts(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("get server texts: %w", err)
 	}
 
+	// Локальные данные
 	localTexts, err := s.localStorage.GetAllTexts(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("get local texts: %w", err)
 	}
 
-	for _, local := range localTexts {
-		if err := s.localStorage.DeleteText(ctx, local.ID); err != nil {
-			return err
-		}
-	}
-
+	// Создаём мапу серверных сущностей
+	serverMap := make(map[string]entities.TextData, len(serverTexts))
 	for _, text := range serverTexts {
-		dto := &entities.TextData{
-			Data:         text.Data,
-			SecureEntity: entities.SecureEntity{ID: text.ID, Metadata: text.Metadata},
+		serverMap[text.ID] = text
+	}
+
+	// Удаляем локальные сущности, которых нет на сервере или которые изменены
+	for _, localText := range localTexts {
+		id := localText.ID
+		serverText, existsOnServer := serverMap[id]
+
+		if existsOnServer && entities.Equals(&localText, &serverText) {
+			// Сущность не изменилась - удаляем из serverMap, чтобы не создавать заново
+			delete(serverMap, id)
+			continue
 		}
-		if _, err := s.localStorage.CreateText(ctx, dto); err != nil {
-			return err
+
+		// Если сущности нет на сервере либо она изменилась - удаляем локально
+		if err := s.localStorage.DeleteText(ctx, id); err != nil {
+			return fmt.Errorf("delete text %s: %w", id, err)
+		}
+	}
+
+	// Создаем сущности которые есть на сервере, но нет локально
+	for _, serverText := range serverMap {
+		if _, err := s.localStorage.CreateText(ctx, &serverText); err != nil {
+			return fmt.Errorf("create text %s: %w", serverText.ID, err)
 		}
 	}
 

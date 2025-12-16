@@ -1,6 +1,11 @@
 package entities
 
-import crypto "github.com/JustScorpio/GophKeeper/frontend/internal/encryption"
+import (
+	"crypto/sha256"
+	"encoding/hex"
+
+	crypto "github.com/JustScorpio/GophKeeper/frontend/internal/encryption"
+)
 
 // TextData - текстовые данные
 type TextData struct {
@@ -9,43 +14,55 @@ type TextData struct {
 }
 
 // EncryptFields - шифрует все поля кроме ID
-func (t *TextData) EncryptFields(cryptoService *crypto.CryptoService) error {
-	if t.Metadata != "" {
-		encryptedMetadata, err := cryptoService.Encrypt(t.Metadata)
+func (entity *TextData) EncryptFields(cryptoService *crypto.CryptoService) error {
+	if entity.Metadata != "" {
+		encryptedMetadata, err := cryptoService.Encrypt(entity.Metadata)
 		if err != nil {
 			return err
 		}
-		t.Metadata = encryptedMetadata
+		entity.Metadata = encryptedMetadata
 	}
 
-	if t.Data != "" {
-		encryptedData, err := cryptoService.Encrypt(t.Data)
+	if entity.Data != "" {
+		encryptedData, err := cryptoService.Encrypt(entity.Data)
 		if err != nil {
 			return err
 		}
-		t.Data = encryptedData
+		entity.Data = encryptedData
 	}
 
 	return nil
 }
 
 // DecryptFields - дешифрует все поля кроме ID
-func (t *TextData) DecryptFields(cryptoService *crypto.CryptoService) error {
-	if t.Metadata != "" {
-		decryptedMetadata, err := cryptoService.Decrypt(t.Metadata)
+func (entity *TextData) DecryptFields(cryptoService *crypto.CryptoService) error {
+	if entity.Metadata != "" {
+		decryptedMetadata, err := cryptoService.Decrypt(entity.Metadata)
 		if err != nil {
 			return err
 		}
-		t.Metadata = decryptedMetadata
+		entity.Metadata = decryptedMetadata
 	}
 
-	if t.Data != "" {
-		decryptedData, err := cryptoService.Decrypt(t.Data)
+	if entity.Data != "" {
+		decryptedData, err := cryptoService.Decrypt(entity.Data)
 		if err != nil {
 			return err
 		}
-		t.Data = decryptedData
+		entity.Data = decryptedData
 	}
 
 	return nil
+}
+
+func (entity *TextData) GetHash() string {
+	// Нулевой байт ([]byte{0}) как разделитель не встретится в данных
+	hasher := sha256.New()
+	hasher.Write([]byte(entity.ID))
+	hasher.Write([]byte{0})
+	hasher.Write([]byte(entity.Metadata))
+	hasher.Write([]byte{0})
+	hasher.Write([]byte(entity.Data))
+
+	return hex.EncodeToString(hasher.Sum(nil))
 }

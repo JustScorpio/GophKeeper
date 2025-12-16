@@ -163,6 +163,46 @@ func (m *MockSyncAPIClient) DeleteText(ctx context.Context, id string) error {
 	return args.Error(0)
 }
 
+// containsBinaryWithID - проверить наличие бинарных данных в слайсе по ID
+func containsBinaryWithID(binaries []entities.BinaryData, id string) bool {
+	for _, b := range binaries {
+		if b.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// containsCardWithID - проверить наличие данных карты в слайсе по ID
+func containsCardWithID(cards []entities.CardInformation, id string) bool {
+	for _, c := range cards {
+		if c.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// containsCredentialsWithID - проверить наличие учётных карты в слайсе по ID
+func containsCredentialsWithID(creds []entities.Credentials, id string) bool {
+	for _, c := range creds {
+		if c.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
+// containsTextWithID - проверить наличие текстовых карты в слайсе по ID
+func containsTextWithID(texts []entities.TextData, id string) bool {
+	for _, t := range texts {
+		if t.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
 // TestSyncService_Sync - тесты сервиса синхронизации данных
 func TestSyncService_Sync(t *testing.T) {
 	ctx := context.Background()
@@ -269,8 +309,8 @@ func TestSyncService_Sync(t *testing.T) {
 		binaries, err := storageService.GetAllBinaries(ctx)
 		require.NoError(t, err)
 		assert.Len(t, binaries, 2)
-		assert.Equal(t, "server-bin-1", binaries[0].ID)
-		assert.Equal(t, "server-bin-2", binaries[1].ID)
+		assert.True(t, containsBinaryWithID(binaries, "server-bin-1"))
+		assert.True(t, containsBinaryWithID(binaries, "server-bin-2"))
 
 		cards, err := storageService.GetAllCards(ctx)
 		require.NoError(t, err)
@@ -532,8 +572,8 @@ func TestSyncService_Sync(t *testing.T) {
 		cards, err := storageService.GetAllCards(ctx)
 		require.NoError(t, err)
 		assert.Len(t, cards, 2)
-		assert.Equal(t, "card-1", cards[0].ID)
-		assert.Equal(t, "card-2", cards[1].ID)
+		assert.True(t, containsCardWithID(cards, "card-1"))
+		assert.True(t, containsCardWithID(cards, "card-2"))
 
 		mockAPI.AssertExpectations(t)
 	})

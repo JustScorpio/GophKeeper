@@ -69,8 +69,6 @@ func run() error {
 		auth.Init(secretKey)
 	}
 
-	fmt.Println("DB connection string: ", databaseConnStr)
-
 	//Инициализация репозиториев
 	dbManager, err := postgres.NewDatabaseManager(databaseConnStr)
 	if err != nil {

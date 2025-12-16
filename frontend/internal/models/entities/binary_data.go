@@ -1,51 +1,68 @@
 package entities
 
-import crypto "github.com/JustScorpio/GophKeeper/frontend/internal/encryption"
+import (
+	"crypto/sha256"
+	"encoding/hex"
+
+	crypto "github.com/JustScorpio/GophKeeper/frontend/internal/encryption"
+)
 
 // BinaryData - бинарные данные
 type BinaryData struct {
 	SecureEntity
-	Data []byte `json:"data"` //Зашифрованное тоже будет в виде массива байт
+	Data []byte `json:"data"`
 }
 
 // EncryptFields - шифрует все поля кроме ID
-func (b *BinaryData) EncryptFields(cryptoService *crypto.CryptoService) error {
-	if b.Metadata != "" {
-		encryptedMetadata, err := cryptoService.Encrypt(b.Metadata)
+func (entity *BinaryData) EncryptFields(cryptoService *crypto.CryptoService) error {
+	if entity.Metadata != "" {
+		encryptedMetadata, err := cryptoService.Encrypt(entity.Metadata)
 		if err != nil {
 			return err
 		}
-		b.Metadata = encryptedMetadata
+		entity.Metadata = encryptedMetadata
 	}
 
-	if len(b.Data) > 0 {
-		encryptedData, err := cryptoService.EncryptBytes(b.Data)
+	if len(entity.Data) > 0 {
+		encryptedData, err := cryptoService.EncryptBytes(entity.Data)
 		if err != nil {
 			return err
 		}
-		b.Data = encryptedData
+		entity.Data = encryptedData
 	}
 
 	return nil
 }
 
 // DecryptFields - дешифрует все поля кроме ID
-func (b *BinaryData) DecryptFields(cryptoService *crypto.CryptoService) error {
-	if b.Metadata != "" {
-		decryptedMetadata, err := cryptoService.Decrypt(b.Metadata)
+func (entity *BinaryData) DecryptFields(cryptoService *crypto.CryptoService) error {
+	if entity.Metadata != "" {
+		decryptedMetadata, err := cryptoService.Decrypt(entity.Metadata)
 		if err != nil {
 			return err
 		}
-		b.Metadata = decryptedMetadata
+		entity.Metadata = decryptedMetadata
 	}
 
-	if len(b.Data) > 0 {
-		decryptedData, err := cryptoService.DecryptBytes(b.Data)
+	if len(entity.Data) > 0 {
+		decryptedData, err := cryptoService.DecryptBytes(entity.Data)
 		if err != nil {
 			return err
 		}
-		b.Data = decryptedData
+		entity.Data = decryptedData
 	}
 
 	return nil
+}
+
+func (entity *BinaryData) GetHash() string {
+	// Нулевой байт ([]byte{0}) как разделитель не встретится в данных
+	hasher := sha256.New()
+	hasher.Write([]byte(entity.ID))
+	hasher.Write([]byte{0})
+	hasher.Write([]byte(entity.Metadata))
+	hasher.Write([]byte{0})
+	hasher.Write(entity.Data)
+
+	return hex.EncodeToString(hasher.Sum(nil))
 }

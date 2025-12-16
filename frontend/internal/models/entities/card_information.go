@@ -1,6 +1,11 @@
 package entities
 
-import crypto "github.com/JustScorpio/GophKeeper/frontend/internal/encryption"
+import (
+	"crypto/sha256"
+	"encoding/hex"
+
+	crypto "github.com/JustScorpio/GophKeeper/frontend/internal/encryption"
+)
 
 // CardInformation - данные банковской карты
 type CardInformation struct {
@@ -12,91 +17,109 @@ type CardInformation struct {
 }
 
 // EncryptFields - шифрует все поля кроме ID
-func (c *CardInformation) EncryptFields(cryptoService *crypto.CryptoService) error {
-	if c.Metadata != "" {
-		encryptedMetadata, err := cryptoService.Encrypt(c.Metadata)
+func (entity *CardInformation) EncryptFields(cryptoService *crypto.CryptoService) error {
+	if entity.Metadata != "" {
+		encryptedMetadata, err := cryptoService.Encrypt(entity.Metadata)
 		if err != nil {
 			return err
 		}
-		c.Metadata = encryptedMetadata
+		entity.Metadata = encryptedMetadata
 	}
 
-	if c.Number != "" {
-		encryptedNumber, err := cryptoService.Encrypt(c.Number)
+	if entity.Number != "" {
+		encryptedNumber, err := cryptoService.Encrypt(entity.Number)
 		if err != nil {
 			return err
 		}
-		c.Number = encryptedNumber
+		entity.Number = encryptedNumber
 	}
 
-	if c.CardHolder != "" {
-		encryptedCardHolder, err := cryptoService.Encrypt(c.CardHolder)
+	if entity.CardHolder != "" {
+		encryptedCardHolder, err := cryptoService.Encrypt(entity.CardHolder)
 		if err != nil {
 			return err
 		}
-		c.CardHolder = encryptedCardHolder
+		entity.CardHolder = encryptedCardHolder
 	}
 
-	if c.ExpirationDate != "" {
-		encryptedExpirationDate, err := cryptoService.Encrypt(c.ExpirationDate)
+	if entity.ExpirationDate != "" {
+		encryptedExpirationDate, err := cryptoService.Encrypt(entity.ExpirationDate)
 		if err != nil {
 			return err
 		}
-		c.ExpirationDate = encryptedExpirationDate
+		entity.ExpirationDate = encryptedExpirationDate
 	}
 
-	if c.CVV != "" {
-		encryptedCVV, err := cryptoService.Encrypt(c.CVV)
+	if entity.CVV != "" {
+		encryptedCVV, err := cryptoService.Encrypt(entity.CVV)
 		if err != nil {
 			return err
 		}
-		c.CVV = encryptedCVV
+		entity.CVV = encryptedCVV
 	}
 
 	return nil
 }
 
 // DecryptFields - дешифрует все поля кроме ID
-func (c *CardInformation) DecryptFields(cryptoService *crypto.CryptoService) error {
-	if c.Metadata != "" {
-		decryptedMetadata, err := cryptoService.Decrypt(c.Metadata)
+func (entity *CardInformation) DecryptFields(cryptoService *crypto.CryptoService) error {
+	if entity.Metadata != "" {
+		decryptedMetadata, err := cryptoService.Decrypt(entity.Metadata)
 		if err != nil {
 			return err
 		}
-		c.Metadata = decryptedMetadata
+		entity.Metadata = decryptedMetadata
 	}
 
-	if c.Number != "" {
-		decryptedNumber, err := cryptoService.Decrypt(c.Number)
+	if entity.Number != "" {
+		decryptedNumber, err := cryptoService.Decrypt(entity.Number)
 		if err != nil {
 			return err
 		}
-		c.Number = decryptedNumber
+		entity.Number = decryptedNumber
 	}
 
-	if c.CardHolder != "" {
-		decryptedCardHolder, err := cryptoService.Decrypt(c.CardHolder)
+	if entity.CardHolder != "" {
+		decryptedCardHolder, err := cryptoService.Decrypt(entity.CardHolder)
 		if err != nil {
 			return err
 		}
-		c.CardHolder = decryptedCardHolder
+		entity.CardHolder = decryptedCardHolder
 	}
 
-	if c.ExpirationDate != "" {
-		decryptedExpirationDate, err := cryptoService.Decrypt(c.ExpirationDate)
+	if entity.ExpirationDate != "" {
+		decryptedExpirationDate, err := cryptoService.Decrypt(entity.ExpirationDate)
 		if err != nil {
 			return err
 		}
-		c.ExpirationDate = decryptedExpirationDate
+		entity.ExpirationDate = decryptedExpirationDate
 	}
 
-	if c.CVV != "" {
-		decryptedCVV, err := cryptoService.Decrypt(c.CVV)
+	if entity.CVV != "" {
+		decryptedCVV, err := cryptoService.Decrypt(entity.CVV)
 		if err != nil {
 			return err
 		}
-		c.CVV = decryptedCVV
+		entity.CVV = decryptedCVV
 	}
 
 	return nil
+}
+
+func (entity *CardInformation) GetHash() string {
+	// Нулевой байт ([]byte{0}) как разделитель не встретится в данных
+	hasher := sha256.New()
+	hasher.Write([]byte(entity.ID))
+	hasher.Write([]byte{0})
+	hasher.Write([]byte(entity.Metadata))
+	hasher.Write([]byte{0})
+	hasher.Write([]byte(entity.Number))
+	hasher.Write([]byte{0})
+	hasher.Write([]byte(entity.CardHolder))
+	hasher.Write([]byte{0})
+	hasher.Write([]byte(entity.ExpirationDate))
+	hasher.Write([]byte{0})
+	hasher.Write([]byte(entity.CVV))
+
+	return hex.EncodeToString(hasher.Sum(nil))
 }

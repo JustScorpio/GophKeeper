@@ -59,7 +59,7 @@ func LoggingMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 				zap.String("user-agent", r.UserAgent()),
 				zap.Int("status", rw.status),
 				zap.Int("size", rw.size),
-				zap.String("body", rw.body),
+				// zap.String("body", rw.body), //private information!
 				zap.String("auth-token", userID),
 			)
 		})
