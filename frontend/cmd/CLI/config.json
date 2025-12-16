@@ -1,4 +1,4 @@
 {
     "db_path": "./data/gophkeeper.db",
-    "server_addr": "http://localhost:8080"
+    "server_addr": "https://localhost:8080"
 }

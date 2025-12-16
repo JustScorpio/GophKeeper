@@ -15,14 +15,19 @@ const (
 	jwtCookieName = "jwt_token"
 	//Время жизни токена
 	tokenLifeTime = time.Hour * 3
-	// Ключ для генерации и расшифровки токена (В РЕАЛЬНОМ ПРИЛОЖЕНИИ ХРАНИТЬ В НАДЁЖНОМ МЕСТЕ)
-	secretKey = "supersecretkey"
 )
+
+// Ключ для генерации и расшифровки токена (задаётся с помощью флага либо переменной окружения)
+var secretKey string
 
 // Claims — структура утверждений, которая включает стандартные утверждения и одно пользовательское UserID
 type Claims struct {
 	jwt.RegisteredClaims
 	Login string `json:"login"`
+}
+
+func Init(key string) {
+	secretKey = key
 }
 
 // NewJWTString - создаёт токен с логином пользователя

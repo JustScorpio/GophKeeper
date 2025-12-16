@@ -63,6 +63,12 @@ func run() error {
 		databaseConnStr = envDBAddr
 	}
 
+	// Получение ключа для генерации токенов
+	if envSecretKey, hasEnv := os.LookupEnv("AUTH_SECRET_KEY"); hasEnv {
+		secretKey = envSecretKey
+		auth.Init(secretKey)
+	}
+
 	fmt.Println("DB connection string: ", databaseConnStr)
 
 	//Инициализация репозиториев
@@ -75,15 +81,22 @@ func run() error {
 	// Инициализация сервисов
 	storageService := services.NewStorageService(dbManager.UsersRepo, dbManager.BinariesRepo, dbManager.CardsRepo, dbManager.CredentialsRepo, dbManager.TextsRepo)
 
-	//При наличии переменной окружения или наличии флага - запускаем на HTTPS.
-	if _, hasEnv := os.LookupEnv("ENABLE_HTTPS"); hasEnv {
-		enableHTTPS = true
-	}
+	//При наличии переменной окружения или флага - запускаем на HTTPS
+	_, hasEnv := os.LookupEnv("ENABLE_HTTPS")
+	enableHTTPS = hasEnv || enableHTTPS
 
 	//Сертификат для HTTPS
 	var tlsConfig *tls.Config
 	if enableHTTPS {
-		tlsConfig, err = GetTestTLSConfig()
+		// Чтение пути до сертификата и его ключа
+		if envTlsCertPath, hasEnv := os.LookupEnv("TLS_CERT_PATH"); hasEnv {
+			tlsCertPath = envTlsCertPath
+		}
+		if envKeyCertPath, hasEnv := os.LookupEnv("TLS_KEY_PATH"); hasEnv {
+			tlsKeyPath = envKeyCertPath
+		}
+
+		tlsConfig, err = GetTLSConfigFromFiles(tlsCertPath, tlsKeyPath)
 		if err != nil {
 			return err
 		}

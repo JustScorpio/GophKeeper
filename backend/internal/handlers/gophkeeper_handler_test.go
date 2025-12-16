@@ -10,6 +10,7 @@ import (
 
 	"github.com/JustScorpio/GophKeeper/backend/internal/customcontext"
 	"github.com/JustScorpio/GophKeeper/backend/internal/handlers"
+	"github.com/JustScorpio/GophKeeper/backend/internal/middleware/auth"
 	"github.com/JustScorpio/GophKeeper/backend/internal/models/dtos"
 	"github.com/JustScorpio/GophKeeper/backend/internal/models/entities"
 	"github.com/JustScorpio/GophKeeper/backend/internal/repositories/inmemory"
@@ -74,6 +75,9 @@ func createTestHandlerAndRouter() (*chi.Mux, *inmemory.DatabaseManager) {
 		dbManager.Texts,
 	)
 	handler := handlers.NewGophkeeperHandler(service)
+
+	//Инициализация аутентификатора
+	auth.Init("649f7b24-76ea-4f15-bd32-31fab91d63f6")
 
 	// Создаем роутер
 	router := chi.NewRouter()
