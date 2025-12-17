@@ -17,17 +17,6 @@ type TextsRepo struct {
 
 // NewTextsRepo - инициализация репозитория
 func NewTextsRepo(db *sql.DB) (*TextsRepo, error) {
-	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS texts (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			data TEXT NOT NULL,
-			metadata TEXT
-		)
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create texts table: %w", err)
-	}
-
 	return &TextsRepo{db: db}, nil
 }
 

@@ -1,0 +1,28 @@
+CREATE TABLE IF NOT EXISTS binaries (
+	id INTEGER PRIMARY KEY,
+	data BLOB NOT NULL,
+	metadata TEXT
+);
+
+CREATE TABLE IF NOT EXISTS cards (
+	id INTEGER PRIMARY KEY,
+	number TEXT NOT NULL,
+	card_holder TEXT NOT NULL,
+	expiration_date TEXT NOT NULL,
+	cvv TEXT NOT NULL,
+	metadata TEXT
+);
+
+CREATE TABLE IF NOT EXISTS credentials (
+	id INTEGER PRIMARY KEY,
+	login TEXT NOT NULL,
+	password TEXT NOT NULL,
+	metadata TEXT
+);
+
+CREATE TABLE IF NOT EXISTS texts (
+	id INTEGER PRIMARY KEY,
+	data TEXT NOT NULL,
+	metadata TEXT
+);
+

@@ -17,20 +17,6 @@ type CardsRepo struct {
 
 // NewCardsRepo - инициализация репозитория
 func NewCardsRepo(db *sql.DB) (*CardsRepo, error) {
-	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS cards (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			number TEXT NOT NULL,
-			card_holder TEXT NOT NULL,
-			expiration_date TEXT NOT NULL,
-			cvv TEXT NOT NULL,
-			metadata TEXT
-		)
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create cards table: %w", err)
-	}
-
 	return &CardsRepo{db: db}, nil
 }
 

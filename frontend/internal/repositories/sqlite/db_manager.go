@@ -1,11 +1,13 @@
 package sqlite
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/JustScorpio/GophKeeper/frontend/internal/repositories/sqlite/migrations"
 	_ "modernc.org/sqlite"
 )
 
@@ -37,6 +39,12 @@ func NewDatabaseManager(dbPath string) (*DatabaseManager, error) {
 	// Включаем foreign keys и другие настройки SQLite
 	if _, err := db.Exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL;"); err != nil {
 		return nil, fmt.Errorf("failed to set pragmas: %w", err)
+	}
+
+	// Запускаем миграции
+	migrator := migrations.NewMigrator(db)
+	if err := migrator.Migrate(context.Background()); err != nil {
+		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	// Инициализируем репозитории

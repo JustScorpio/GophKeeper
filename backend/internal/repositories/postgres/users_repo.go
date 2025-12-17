@@ -18,17 +18,6 @@ type PgUsersRepo struct {
 
 // NewPgUsersRepo - инициализация репозитория
 func NewPgUsersRepo(db *pgx.Conn) (*PgUsersRepo, error) {
-	// Создание таблицы users, если её нет
-	_, err := db.Exec(context.Background(), `
-		CREATE TABLE IF NOT EXISTS users (
-			login TEXT NOT NULL PRIMARY KEY,
-			password TEXT
-		)
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create tables: %w", err)
-	}
-
 	return &PgUsersRepo{db: db}, nil
 }
 

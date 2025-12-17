@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/JustScorpio/GophKeeper/backend/internal/repositories/postgres/migrations"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -35,6 +36,7 @@ func InitDatabase(connStr string) (*pgx.Conn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to default database: %w", err)
 	}
+
 	defer defaultDB.Close(context.Background())
 
 	// Проверка наличия базы данных
@@ -70,6 +72,12 @@ func NewDatabaseManager(connStr string) (*DatabaseManager, error) {
 	db, err := InitDatabase(connStr)
 	if err != nil {
 		return nil, err
+	}
+
+	// Запускаем миграции
+	migrator := migrations.NewMigrator(db)
+	if err := migrator.Migrate(context.Background()); err != nil {
+		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	binariesRepo, err := NewPgBinariesRepo(db)

@@ -1,0 +1,37 @@
+CREATE TABLE IF NOT EXISTS Binaries (
+	id SERIAL PRIMARY KEY,
+	data BYTEA NOT NULL,
+	metadata TEXT,
+	ownerid TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS Cards (
+	id SERIAL PRIMARY KEY,
+	Number TEXT NOT NULL,
+	CardHolder TEXT NOT NULL,
+	ExpirationDate DATE NOT NULL,
+	CVV TEXT NOT NULL,
+	metadata TEXT,
+	ownerid TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS Credentials (
+	id SERIAL PRIMARY KEY,
+	login TEXT NOT NULL,
+	password TEXT NOT NULL,
+	metadata TEXT,
+	ownerid TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS Texts (
+	id SERIAL PRIMARY KEY,
+	data TEXT NOT NULL,
+	metadata TEXT,
+	ownerid TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS users (
+	login TEXT NOT NULL PRIMARY KEY,
+	password TEXT
+);
+

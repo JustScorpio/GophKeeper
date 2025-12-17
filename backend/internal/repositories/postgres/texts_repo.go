@@ -19,19 +19,6 @@ type PgTextsRepo struct {
 
 // NewPgTextsRepo - инициализация репозитория
 func NewPgTextsRepo(db *pgx.Conn) (*PgTextsRepo, error) {
-	// Создание таблицы Texts, если её нет
-	_, err := db.Exec(context.Background(), `
-		CREATE TABLE IF NOT EXISTS Texts (
-			id SERIAL PRIMARY KEY,
-			data TEXT NOT NULL,
-			metadata TEXT,
-			ownerid TEXT NOT NULL
-		)
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create tables: %w", err)
-	}
-
 	return &PgTextsRepo{db: db}, nil
 }
 

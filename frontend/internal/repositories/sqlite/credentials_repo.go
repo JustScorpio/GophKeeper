@@ -17,18 +17,6 @@ type CredentialsRepo struct {
 
 // NewCredentialsRepo - инициализация репозитория
 func NewCredentialsRepo(db *sql.DB) (*CredentialsRepo, error) {
-	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS credentials (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			login TEXT NOT NULL,
-			password TEXT NOT NULL,
-			metadata TEXT
-		)
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create table: %w", err)
-	}
-
 	return &CredentialsRepo{db: db}, nil
 }
 

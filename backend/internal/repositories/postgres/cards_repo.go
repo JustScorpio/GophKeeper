@@ -19,22 +19,6 @@ type PgCardsRepo struct {
 
 // NewPgCardsRepo - инициализация репозитория
 func NewPgCardsRepo(db *pgx.Conn) (*PgCardsRepo, error) {
-	// Создание таблицы Cards, если её нет
-	_, err := db.Exec(context.Background(), `
-		CREATE TABLE IF NOT EXISTS Cards (
-			id SERIAL PRIMARY KEY,
-			Number TEXT NOT NULL,
-			CardHolder TEXT NOT NULL,
-			ExpirationDate DATE NOT NULL,
-			CVV TEXT NOT NULL,
-			metadata TEXT,
-			ownerid TEXT NOT NULL
-		)
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create tables: %w", err)
-	}
-
 	return &PgCardsRepo{db: db}, nil
 }
 

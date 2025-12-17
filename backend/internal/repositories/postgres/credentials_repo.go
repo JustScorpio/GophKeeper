@@ -19,20 +19,6 @@ type PgCredentialsRepo struct {
 
 // NewPgCredentialsRepo - инициализация репозитория
 func NewPgCredentialsRepo(db *pgx.Conn) (*PgCredentialsRepo, error) {
-	// Создание таблицы Credentials, если её нет
-	_, err := db.Exec(context.Background(), `
-		CREATE TABLE IF NOT EXISTS Credentials (
-			id SERIAL PRIMARY KEY,
-			login TEXT NOT NULL,
-			password TEXT NOT NULL,
-			metadata TEXT,
-			ownerid TEXT NOT NULL
-		)
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create tables: %w", err)
-	}
-
 	return &PgCredentialsRepo{db: db}, nil
 }
 

@@ -17,18 +17,6 @@ type BinariesRepo struct {
 
 // NewBinariesRepo - инициализация репозитория
 func NewBinariesRepo(db *sql.DB) (*BinariesRepo, error) {
-	// Создание таблицы Binaries, если её нет
-	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS binaries (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			data BLOB NOT NULL,
-			metadata TEXT
-		)
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create tables: %w", err)
-	}
-
 	return &BinariesRepo{db: db}, nil
 }
 
