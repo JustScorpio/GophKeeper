@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/JustScorpio/GophKeeper/frontend/internal/clients"
@@ -29,8 +31,7 @@ var (
 //go:embed config.json
 var configContent []byte
 
-// UNDONE: база должна быть запаролена
-// DBConfiguration - из confog.json
+// DBConfiguration - из config.json
 type AppConfiguration struct {
 	DbPath     string `json:"db_path"`
 	ServerAddr string `json:"server_addr"`
@@ -52,26 +53,28 @@ func main() {
 	fmt.Printf("%s v.%s %s\n", "GophKeeper", buildVersion, buildDate)
 	fmt.Println("==========================")
 
+	// Контекст для graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	// Инициализация приложения
 	app, err := initializeApp()
 	if err != nil {
 		log.Fatalf("Failed to initialize application: %v", err)
 	}
-	defer app.shutdown()
+	defer app.gracefulShutdown()
 
-	// UNDONE
-	// // Обработка сигналов для graceful shutdown
-	// sigChan := make(chan os.Signal, 1)
-	// signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT, syscall.SIGQUIT)
+	// Обработка сигналов
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
 
-	// go func() {
-	// 	<-sigChan
-	// 	fmt.Println("\nReceived shutdown signal")
-	// 	os.Exit(0)
-	// }()
+	go func() {
+		<-sigChan
+		fmt.Println("\nReceived shutdown signal")
+		cancel() // Отменяем контекст при сигнале
+	}()
 
-	// Основной цикл приложения
-	app.run()
+	app.run(ctx)
 }
 
 // initializeApp - инициализация приложения
@@ -110,13 +113,11 @@ func initializeApp() (*App, error) {
 		localStorage: localStorage,
 		syncService:  syncService,
 		appService:   appService,
-		isLoggedIn:   false,
-		currentUser:  "",
 	}, nil
 }
 
-// (not yet graceful) shutdown - выход из приложения
-func (a *App) shutdown() {
+// gracefulShutdown - завершение работы приложения
+func (a *App) gracefulShutdown() {
 	if a.dbManager != nil {
 		a.dbManager.Close()
 	}
@@ -124,14 +125,22 @@ func (a *App) shutdown() {
 }
 
 // run - запуск приложения
-func (a *App) run() {
+func (a *App) run(ctx context.Context) {
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
+		// Проверяем, не отменен ли контекст
+		select {
+		case <-ctx.Done():
+			fmt.Println("Shutdown initiated, exiting...")
+			return
+		default:
+		}
+
 		a.showMainMenu()
 
 		fmt.Print("\n> ")
-		input, err := reader.ReadString('\n')
+		input, err := a.readInputWithContext(reader, ctx)
 		if err != nil {
 			fmt.Printf("Error reading input: %v\n", err)
 			continue
@@ -141,18 +150,18 @@ func (a *App) run() {
 
 		switch input {
 		case "1":
-			a.handleLogin(reader)
+			a.handleLogin(reader, ctx)
 		case "2":
-			a.handleRegister(reader)
+			a.handleRegister(reader, ctx)
 		case "3":
 			if a.isLoggedIn {
-				a.handleDataMenu(reader)
+				a.handleDataMenu(reader, ctx)
 			} else {
 				fmt.Println("Please login first!")
 			}
 		case "4":
 			if a.isLoggedIn {
-				a.handleSync()
+				a.handleSync(ctx)
 			} else {
 				fmt.Println("Please login first!")
 			}
@@ -170,6 +179,32 @@ func (a *App) run() {
 		default:
 			fmt.Println("Unknown command. Type 'help' for available commands.")
 		}
+	}
+}
+
+// readInputWithContext - чтение ввода с поддержкой контекста
+func (a *App) readInputWithContext(reader *bufio.Reader, ctx context.Context) (string, error) {
+	inputChan := make(chan string, 1)
+	errChan := make(chan error, 1)
+
+	// Читаем ввод в отдельной горутине
+	go func() {
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			errChan <- err
+			return
+		}
+		inputChan <- input
+	}()
+
+	// Ждем либо ввод, либо отмену контекста
+	select {
+	case <-ctx.Done():
+		return "", context.Canceled
+	case err := <-errChan:
+		return "", err
+	case input := <-inputChan:
+		return input, nil
 	}
 }
 
@@ -207,22 +242,37 @@ func (a *App) showHelp() {
 }
 
 // handleLogin - обработка аутентификации в приложении
-func (a *App) handleLogin(reader *bufio.Reader) {
+func (a *App) handleLogin(reader *bufio.Reader, ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
 	fmt.Println("\n=== Login ===")
 
 	fmt.Print("Username: ")
-	username, _ := reader.ReadString('\n')
+	username, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	username = strings.TrimSpace(username)
 
 	fmt.Print("Password: ")
-	password, _ := reader.ReadString('\n')
+	password, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	password = strings.TrimSpace(password)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// Используем контекст с таймаутом, но связанный с общим контекстом
+	loginCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	fmt.Print("Logging in... ")
-	err := a.appService.Login(ctx, username, password)
+	err = a.appService.Login(loginCtx, username, password)
 	if err != nil {
 		fmt.Printf("FAILED: %v\n", err)
 		return
@@ -235,22 +285,36 @@ func (a *App) handleLogin(reader *bufio.Reader) {
 }
 
 // handleRegister - обработка регистрации в приложении
-func (a *App) handleRegister(reader *bufio.Reader) {
+func (a *App) handleRegister(reader *bufio.Reader, ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
 	fmt.Println("\n=== Register ===")
 
 	fmt.Print("Username: ")
-	username, _ := reader.ReadString('\n')
+	username, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	username = strings.TrimSpace(username)
 
 	fmt.Print("Password: ")
-	password, _ := reader.ReadString('\n')
+	password, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	password = strings.TrimSpace(password)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	registerCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	fmt.Print("Registering... ")
-	err := a.appService.Register(ctx, username, password)
+	err = a.appService.Register(registerCtx, username, password)
 	if err != nil {
 		fmt.Printf("FAILED: %v\n", err)
 		return
@@ -271,14 +335,22 @@ func (a *App) handleLogout() {
 }
 
 // handleSync - обработка синхронизации данных с сервером
-func (a *App) handleSync() {
+func (a *App) handleSync(ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
 	fmt.Println("\n=== Sync Data ===")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	syncCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
 	fmt.Print("Synchronizing with server... ")
-	err := a.appService.ForceSync(ctx)
+	err := a.appService.ForceSync(syncCtx)
 	if err != nil {
 		fmt.Printf("FAILED: %v\n", err)
 	} else {
@@ -288,8 +360,16 @@ func (a *App) handleSync() {
 }
 
 // handleDataMenu - обработка работы с данными
-func (a *App) handleDataMenu(reader *bufio.Reader) {
+func (a *App) handleDataMenu(reader *bufio.Reader, ctx context.Context) {
 	for {
+		// Проверяем, не отменен ли контекст
+		select {
+		case <-ctx.Done():
+			fmt.Println("Operation cancelled due to shutdown")
+			return
+		default:
+		}
+
 		fmt.Println("\n=== Data Management ===")
 		fmt.Println("1. Binary Data")
 		fmt.Println("2. Card Data")
@@ -298,18 +378,21 @@ func (a *App) handleDataMenu(reader *bufio.Reader) {
 		fmt.Println("5. Back to Main Menu")
 
 		fmt.Print("\nSelect data type: ")
-		input, _ := reader.ReadString('\n')
+		input, err := a.readInputWithContext(reader, ctx)
+		if err != nil {
+			return
+		}
 		input = strings.TrimSpace(input)
 
 		switch input {
 		case "1":
-			a.handleBinaryData(reader)
+			a.handleBinaryData(reader, ctx)
 		case "2":
-			a.handleCardData(reader)
+			a.handleCardData(reader, ctx)
 		case "3":
-			a.handleCredentials(reader)
+			a.handleCredentials(reader, ctx)
 		case "4":
-			a.handleTextData(reader)
+			a.handleTextData(reader, ctx)
 		case "5":
 			return
 		default:
@@ -319,8 +402,16 @@ func (a *App) handleDataMenu(reader *bufio.Reader) {
 }
 
 // handleBinaryData - обработка работы с бинарными данными
-func (a *App) handleBinaryData(reader *bufio.Reader) {
+func (a *App) handleBinaryData(reader *bufio.Reader, ctx context.Context) {
 	for {
+		// Проверяем, не отменен ли контекст
+		select {
+		case <-ctx.Done():
+			fmt.Println("Operation cancelled due to shutdown")
+			return
+		default:
+		}
+
 		fmt.Println("\n=== Binary Data ===")
 		fmt.Println("1. List all binaries")
 		fmt.Println("2. Create new binary")
@@ -330,20 +421,23 @@ func (a *App) handleBinaryData(reader *bufio.Reader) {
 		fmt.Println("6. Back")
 
 		fmt.Print("\nSelect action: ")
-		input, _ := reader.ReadString('\n')
+		input, err := a.readInputWithContext(reader, ctx)
+		if err != nil {
+			return
+		}
 		input = strings.TrimSpace(input)
 
 		switch input {
 		case "1":
-			a.listBinaries()
+			a.listBinaries(ctx)
 		case "2":
-			a.createBinary(reader)
+			a.createBinary(reader, ctx)
 		case "3":
-			a.viewBinary(reader)
+			a.viewBinary(reader, ctx)
 		case "4":
-			a.updateBinary(reader)
+			a.updateBinary(reader, ctx)
 		case "5":
-			a.deleteBinary(reader)
+			a.deleteBinary(reader, ctx)
 		case "6":
 			return
 		default:
@@ -353,11 +447,19 @@ func (a *App) handleBinaryData(reader *bufio.Reader) {
 }
 
 // listBinaries - вывод списка бинарных данных
-func (a *App) listBinaries() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+func (a *App) listBinaries(ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
+	listCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	binaries, err := a.appService.GetAllBinaries(ctx)
+	binaries, err := a.appService.GetAllBinaries(listCtx)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
@@ -376,15 +478,29 @@ func (a *App) listBinaries() {
 }
 
 // createBinary - создание бинарных данных
-func (a *App) createBinary(reader *bufio.Reader) {
+func (a *App) createBinary(reader *bufio.Reader, ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
 	fmt.Println("\n=== Create Binary Data ===")
 
 	fmt.Print("Enter metadata (description): ")
-	metadata, _ := reader.ReadString('\n')
+	metadata, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	metadata = strings.TrimSpace(metadata)
 
 	fmt.Print("Enter file path to load binary data (or press Enter to skip): ")
-	filePath, _ := reader.ReadString('\n')
+	filePath, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	filePath = strings.TrimSpace(filePath)
 
 	var data []byte
@@ -398,7 +514,10 @@ func (a *App) createBinary(reader *bufio.Reader) {
 		fmt.Printf("Loaded %d bytes from file\n", len(data))
 	} else {
 		fmt.Print("Enter base64 encoded data: ")
-		base64Data, _ := reader.ReadString('\n')
+		base64Data, err := a.readInputWithContext(reader, ctx)
+		if err != nil {
+			return
+		}
 		base64Data = strings.TrimSpace(base64Data)
 
 		// В реальном приложении нужно декодировать base64
@@ -406,7 +525,7 @@ func (a *App) createBinary(reader *bufio.Reader) {
 		fmt.Printf("Using %d bytes of data\n", len(data))
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	createCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	dto := &dtos.NewBinaryData{
@@ -415,7 +534,7 @@ func (a *App) createBinary(reader *bufio.Reader) {
 	}
 
 	fmt.Print("Creating binary data... ")
-	binary, err := a.appService.CreateBinary(ctx, dto)
+	binary, err := a.appService.CreateBinary(createCtx, dto)
 	if err != nil {
 		fmt.Printf("FAILED: %v\n", err)
 	} else {
@@ -425,15 +544,26 @@ func (a *App) createBinary(reader *bufio.Reader) {
 }
 
 // viewBinary - просмотр бинарных данных
-func (a *App) viewBinary(reader *bufio.Reader) {
+func (a *App) viewBinary(reader *bufio.Reader, ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
 	fmt.Print("\nEnter binary ID: ")
-	id, _ := reader.ReadString('\n')
+	id, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	id = strings.TrimSpace(id)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	viewCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	binary, err := a.appService.GetBinary(ctx, id)
+	binary, err := a.appService.GetBinary(viewCtx, id)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
@@ -450,12 +580,18 @@ func (a *App) viewBinary(reader *bufio.Reader) {
 	fmt.Printf("Size: %d bytes\n", len(binary.Data))
 
 	fmt.Print("\nSave to file? (y/n): ")
-	saveChoice, _ := reader.ReadString('\n')
+	saveChoice, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	saveChoice = strings.TrimSpace(strings.ToLower(saveChoice))
 
 	if saveChoice == "y" || saveChoice == "yes" {
 		fmt.Print("Enter filename: ")
-		filename, _ := reader.ReadString('\n')
+		filename, err := a.readInputWithContext(reader, ctx)
+		if err != nil {
+			return
+		}
 		filename = strings.TrimSpace(filename)
 
 		if err := os.WriteFile(filename, binary.Data, 0644); err != nil {
@@ -467,16 +603,27 @@ func (a *App) viewBinary(reader *bufio.Reader) {
 }
 
 // updateBinary - изменение бинарных данных
-func (a *App) updateBinary(reader *bufio.Reader) {
+func (a *App) updateBinary(reader *bufio.Reader, ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
 	fmt.Print("\nEnter binary ID to update: ")
-	id, _ := reader.ReadString('\n')
+	id, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	id = strings.TrimSpace(id)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	updateCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	// Сначала получаем текущие данные
-	existing, err := a.appService.GetBinary(ctx, id)
+	existing, err := a.appService.GetBinary(updateCtx, id)
 	if err != nil {
 		fmt.Printf("Error getting binary: %v\n", err)
 		return
@@ -498,7 +645,10 @@ func (a *App) updateBinary(reader *bufio.Reader) {
 	fmt.Println("3. Update both metadata and data")
 	fmt.Print("\nSelect option: ")
 
-	option, _ := reader.ReadString('\n')
+	option, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	option = strings.TrimSpace(option)
 
 	var metadata string
@@ -507,13 +657,16 @@ func (a *App) updateBinary(reader *bufio.Reader) {
 	switch option {
 	case "1": // Только метаданные
 		fmt.Print("New metadata: ")
-		metadata, _ = reader.ReadString('\n')
+		metadata, _ = a.readInputWithContext(reader, ctx)
 		metadata = strings.TrimSpace(metadata)
 		data = existing.Data
 
 	case "2": // Только данные
 		fmt.Print("Enter file path with new binary data: ")
-		filePath, _ := reader.ReadString('\n')
+		filePath, err := a.readInputWithContext(reader, ctx)
+		if err != nil {
+			return
+		}
 		filePath = strings.TrimSpace(filePath)
 
 		if filePath == "" {
@@ -533,11 +686,14 @@ func (a *App) updateBinary(reader *bufio.Reader) {
 
 	case "3": // И метаданные, и данные
 		fmt.Print("New metadata: ")
-		metadata, _ = reader.ReadString('\n')
+		metadata, _ = a.readInputWithContext(reader, ctx)
 		metadata = strings.TrimSpace(metadata)
 
 		fmt.Print("Enter file path with new binary data: ")
-		filePath, _ := reader.ReadString('\n')
+		filePath, err := a.readInputWithContext(reader, ctx)
+		if err != nil {
+			return
+		}
 		filePath = strings.TrimSpace(filePath)
 
 		if filePath == "" {
@@ -571,7 +727,7 @@ func (a *App) updateBinary(reader *bufio.Reader) {
 	}
 
 	fmt.Print("\nUpdating binary... ")
-	updated, err := a.appService.UpdateBinary(ctx, updatedBinary)
+	updated, err := a.appService.UpdateBinary(updateCtx, updatedBinary)
 	if err != nil {
 		fmt.Printf("FAILED: %v\n", err)
 	} else {
@@ -582,13 +738,27 @@ func (a *App) updateBinary(reader *bufio.Reader) {
 }
 
 // deleteBinary - удаление бинарных данных
-func (a *App) deleteBinary(reader *bufio.Reader) {
+func (a *App) deleteBinary(reader *bufio.Reader, ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
 	fmt.Print("\nEnter binary ID to delete: ")
-	id, _ := reader.ReadString('\n')
+	id, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	id = strings.TrimSpace(id)
 
 	fmt.Print("Are you sure? (yes/no): ")
-	confirm, _ := reader.ReadString('\n')
+	confirm, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	confirm = strings.TrimSpace(strings.ToLower(confirm))
 
 	if confirm != "yes" {
@@ -596,11 +766,11 @@ func (a *App) deleteBinary(reader *bufio.Reader) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	deleteCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	fmt.Print("Deleting binary... ")
-	err := a.appService.DeleteBinary(ctx, id)
+	err = a.appService.DeleteBinary(deleteCtx, id)
 	if err != nil {
 		fmt.Printf("FAILED: %v\n", err)
 	} else {
@@ -610,8 +780,16 @@ func (a *App) deleteBinary(reader *bufio.Reader) {
 }
 
 // handleCardData - работа с картами
-func (a *App) handleCardData(reader *bufio.Reader) {
+func (a *App) handleCardData(reader *bufio.Reader, ctx context.Context) {
 	for {
+		// Проверяем, не отменен ли контекст
+		select {
+		case <-ctx.Done():
+			fmt.Println("Operation cancelled due to shutdown")
+			return
+		default:
+		}
+
 		fmt.Println("\n=== Card Data Management ===")
 		fmt.Println("1. List all cards")
 		fmt.Println("2. Create new card")
@@ -621,20 +799,23 @@ func (a *App) handleCardData(reader *bufio.Reader) {
 		fmt.Println("6. Back")
 
 		fmt.Print("\nSelect action: ")
-		input, _ := reader.ReadString('\n')
+		input, err := a.readInputWithContext(reader, ctx)
+		if err != nil {
+			return
+		}
 		input = strings.TrimSpace(input)
 
 		switch input {
 		case "1":
-			a.listCards()
+			a.listCards(ctx)
 		case "2":
-			a.createCard(reader)
+			a.createCard(reader, ctx)
 		case "3":
-			a.viewCard(reader)
+			a.viewCard(reader, ctx)
 		case "4":
-			a.updateCard(reader)
+			a.updateCard(reader, ctx)
 		case "5":
-			a.deleteCard(reader)
+			a.deleteCard(reader, ctx)
 		case "6":
 			return
 		default:
@@ -644,11 +825,19 @@ func (a *App) handleCardData(reader *bufio.Reader) {
 }
 
 // listCards - просмотр карт
-func (a *App) listCards() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+func (a *App) listCards(ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
+	listCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	cards, err := a.appService.GetAllCards(ctx)
+	cards, err := a.appService.GetAllCards(listCtx)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
@@ -662,36 +851,63 @@ func (a *App) listCards() {
 	fmt.Println("\n=== Card List ===")
 	for i, card := range cards {
 		// Маскируем номер карты для безопасности
+		maskedNumber := card.Number
+		if len(maskedNumber) > 4 {
+			maskedNumber = "****" + maskedNumber[len(maskedNumber)-4:]
+		}
 		fmt.Printf("%d. ID: %s, Card: %s (%s), Expires: %s\n",
-			i+1, card.ID, card.Number, card.CardHolder, card.ExpirationDate)
+			i+1, card.ID, maskedNumber, card.CardHolder, card.ExpirationDate)
 	}
 }
 
 // createCard - создать карту
-func (a *App) createCard(reader *bufio.Reader) {
+func (a *App) createCard(reader *bufio.Reader, ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
 	fmt.Println("\n=== Create New Card ===")
 
 	fmt.Print("Card number: ")
-	number, _ := reader.ReadString('\n')
+	number, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	number = strings.TrimSpace(number)
 
 	fmt.Print("Card holder name: ")
-	cardHolder, _ := reader.ReadString('\n')
+	cardHolder, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	cardHolder = strings.TrimSpace(cardHolder)
 
 	fmt.Print("Expiration date (MM/YY): ")
-	expirationDate, _ := reader.ReadString('\n')
+	expirationDate, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	expirationDate = strings.TrimSpace(expirationDate)
 
 	fmt.Print("CVV: ")
-	cvv, _ := reader.ReadString('\n')
+	cvv, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	cvv = strings.TrimSpace(cvv)
 
 	fmt.Print("Metadata (description): ")
-	metadata, _ := reader.ReadString('\n')
+	metadata, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	metadata = strings.TrimSpace(metadata)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	createCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	dto := &dtos.NewCardInformation{
@@ -703,7 +919,7 @@ func (a *App) createCard(reader *bufio.Reader) {
 	}
 
 	fmt.Print("Creating card... ")
-	card, err := a.appService.CreateCard(ctx, dto)
+	card, err := a.appService.CreateCard(createCtx, dto)
 	if err != nil {
 		fmt.Printf("FAILED: %v\n", err)
 	} else {
@@ -713,15 +929,26 @@ func (a *App) createCard(reader *bufio.Reader) {
 }
 
 // viewCard - посмотреть карту
-func (a *App) viewCard(reader *bufio.Reader) {
+func (a *App) viewCard(reader *bufio.Reader, ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
 	fmt.Print("\nEnter card ID: ")
-	id, _ := reader.ReadString('\n')
+	id, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	id = strings.TrimSpace(id)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	viewCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	card, err := a.appService.GetCard(ctx, id)
+	card, err := a.appService.GetCard(viewCtx, id)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
@@ -742,15 +969,26 @@ func (a *App) viewCard(reader *bufio.Reader) {
 }
 
 // updateCard - изменить карту
-func (a *App) updateCard(reader *bufio.Reader) {
+func (a *App) updateCard(reader *bufio.Reader, ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
 	fmt.Print("\nEnter card ID to update: ")
-	id, _ := reader.ReadString('\n')
+	id, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	id = strings.TrimSpace(id)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	updateCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	existing, err := a.appService.GetCard(ctx, id)
+	existing, err := a.appService.GetCard(updateCtx, id)
 	if err != nil {
 		fmt.Printf("Error getting card: %v\n", err)
 		return
@@ -770,35 +1008,50 @@ func (a *App) updateCard(reader *bufio.Reader) {
 	fmt.Println("\n=== Update Card ===")
 
 	fmt.Print("Card number (press Enter to keep current): ")
-	number, _ := reader.ReadString('\n')
+	number, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	number = strings.TrimSpace(number)
 	if number == "" {
 		number = existing.Number
 	}
 
 	fmt.Print("Card holder name (press Enter to keep current): ")
-	cardHolder, _ := reader.ReadString('\n')
+	cardHolder, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	cardHolder = strings.TrimSpace(cardHolder)
 	if cardHolder == "" {
 		cardHolder = existing.CardHolder
 	}
 
 	fmt.Print("Expiration date MM/YY (press Enter to keep current): ")
-	expirationDate, _ := reader.ReadString('\n')
+	expirationDate, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	expirationDate = strings.TrimSpace(expirationDate)
 	if expirationDate == "" {
 		expirationDate = existing.ExpirationDate
 	}
 
 	fmt.Print("CVV (press Enter to keep current): ")
-	cvv, _ := reader.ReadString('\n')
+	cvv, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	cvv = strings.TrimSpace(cvv)
 	if cvv == "" {
 		cvv = existing.CVV
 	}
 
 	fmt.Print("Metadata (press Enter to keep current): ")
-	metadata, _ := reader.ReadString('\n')
+	metadata, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	metadata = strings.TrimSpace(metadata)
 	if metadata == "" {
 		metadata = existing.Metadata
@@ -813,7 +1066,7 @@ func (a *App) updateCard(reader *bufio.Reader) {
 	}
 
 	fmt.Print("\nUpdating card... ")
-	updated, err := a.appService.UpdateCard(ctx, updatedCard)
+	updated, err := a.appService.UpdateCard(updateCtx, updatedCard)
 	if err != nil {
 		fmt.Printf("FAILED: %v\n", err)
 	} else {
@@ -823,13 +1076,27 @@ func (a *App) updateCard(reader *bufio.Reader) {
 }
 
 // deleteCard - удалить карту
-func (a *App) deleteCard(reader *bufio.Reader) {
+func (a *App) deleteCard(reader *bufio.Reader, ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
 	fmt.Print("\nEnter card ID to delete: ")
-	id, _ := reader.ReadString('\n')
+	id, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	id = strings.TrimSpace(id)
 
 	fmt.Print("Are you sure? (yes/no): ")
-	confirm, _ := reader.ReadString('\n')
+	confirm, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	confirm = strings.TrimSpace(strings.ToLower(confirm))
 
 	if confirm != "yes" {
@@ -837,11 +1104,11 @@ func (a *App) deleteCard(reader *bufio.Reader) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	deleteCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	fmt.Print("Deleting card... ")
-	err := a.appService.DeleteCard(ctx, id)
+	err = a.appService.DeleteCard(deleteCtx, id)
 	if err != nil {
 		fmt.Printf("FAILED: %v\n", err)
 	} else {
@@ -851,8 +1118,16 @@ func (a *App) deleteCard(reader *bufio.Reader) {
 }
 
 // handleCredentials - работа с учётными данными
-func (a *App) handleCredentials(reader *bufio.Reader) {
+func (a *App) handleCredentials(reader *bufio.Reader, ctx context.Context) {
 	for {
+		// Проверяем, не отменен ли контекст
+		select {
+		case <-ctx.Done():
+			fmt.Println("Operation cancelled due to shutdown")
+			return
+		default:
+		}
+
 		fmt.Println("\n=== Credentials Management ===")
 		fmt.Println("1. List all credentials")
 		fmt.Println("2. Create new credentials")
@@ -862,20 +1137,23 @@ func (a *App) handleCredentials(reader *bufio.Reader) {
 		fmt.Println("6. Back")
 
 		fmt.Print("\nSelect action: ")
-		input, _ := reader.ReadString('\n')
+		input, err := a.readInputWithContext(reader, ctx)
+		if err != nil {
+			return
+		}
 		input = strings.TrimSpace(input)
 
 		switch input {
 		case "1":
-			a.listCredentials()
+			a.listCredentials(ctx)
 		case "2":
-			a.createCredentials(reader)
+			a.createCredentials(reader, ctx)
 		case "3":
-			a.viewCredentials(reader)
+			a.viewCredentials(reader, ctx)
 		case "4":
-			a.updateCredentials(reader)
+			a.updateCredentials(reader, ctx)
 		case "5":
-			a.deleteCredentials(reader)
+			a.deleteCredentials(reader, ctx)
 		case "6":
 			return
 		default:
@@ -885,11 +1163,19 @@ func (a *App) handleCredentials(reader *bufio.Reader) {
 }
 
 // listCredentials - просмотр учётных данных
-func (a *App) listCredentials() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+func (a *App) listCredentials(ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
+	listCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	credentials, err := a.appService.GetAllCredentials(ctx)
+	credentials, err := a.appService.GetAllCredentials(listCtx)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
@@ -908,22 +1194,39 @@ func (a *App) listCredentials() {
 }
 
 // createCredentials - создать учётные данные
-func (a *App) createCredentials(reader *bufio.Reader) {
+func (a *App) createCredentials(reader *bufio.Reader, ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
 	fmt.Println("\n=== Create New Credentials ===")
 
 	fmt.Print("Login/Username: ")
-	login, _ := reader.ReadString('\n')
+	login, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	login = strings.TrimSpace(login)
 
 	fmt.Print("Password: ")
-	password, _ := reader.ReadString('\n')
+	password, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	password = strings.TrimSpace(password)
 
 	fmt.Print("Metadata (description, e.g., 'Gmail account'): ")
-	metadata, _ := reader.ReadString('\n')
+	metadata, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	metadata = strings.TrimSpace(metadata)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	createCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	dto := &dtos.NewCredentials{
@@ -933,7 +1236,7 @@ func (a *App) createCredentials(reader *bufio.Reader) {
 	}
 
 	fmt.Print("Creating credentials... ")
-	creds, err := a.appService.CreateCredentials(ctx, dto)
+	creds, err := a.appService.CreateCredentials(createCtx, dto)
 	if err != nil {
 		fmt.Printf("FAILED: %v\n", err)
 	} else {
@@ -943,15 +1246,26 @@ func (a *App) createCredentials(reader *bufio.Reader) {
 }
 
 // viewCredentials - просмотреть учётные данные
-func (a *App) viewCredentials(reader *bufio.Reader) {
+func (a *App) viewCredentials(reader *bufio.Reader, ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
 	fmt.Print("\nEnter credentials ID: ")
-	id, _ := reader.ReadString('\n')
+	id, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	id = strings.TrimSpace(id)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	viewCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	creds, err := a.appService.GetCredentials(ctx, id)
+	creds, err := a.appService.GetCredentials(viewCtx, id)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
@@ -970,15 +1284,26 @@ func (a *App) viewCredentials(reader *bufio.Reader) {
 }
 
 // updateCredentials - обновить учётные данные
-func (a *App) updateCredentials(reader *bufio.Reader) {
+func (a *App) updateCredentials(reader *bufio.Reader, ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
 	fmt.Print("\nEnter credentials ID to update: ")
-	id, _ := reader.ReadString('\n')
+	id, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	id = strings.TrimSpace(id)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	updateCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	existing, err := a.appService.GetCredentials(ctx, id)
+	existing, err := a.appService.GetCredentials(updateCtx, id)
 	if err != nil {
 		fmt.Printf("Error getting credentials: %v\n", err)
 		return
@@ -997,21 +1322,30 @@ func (a *App) updateCredentials(reader *bufio.Reader) {
 	fmt.Println("\n=== Update Credentials ===")
 
 	fmt.Print("Login (press Enter to keep current): ")
-	login, _ := reader.ReadString('\n')
+	login, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	login = strings.TrimSpace(login)
 	if login == "" {
 		login = existing.Login
 	}
 
 	fmt.Print("Password (press Enter to keep current): ")
-	password, _ := reader.ReadString('\n')
+	password, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	password = strings.TrimSpace(password)
 	if password == "" {
 		password = existing.Password
 	}
 
 	fmt.Print("Metadata (press Enter to keep current): ")
-	metadata, _ := reader.ReadString('\n')
+	metadata, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	metadata = strings.TrimSpace(metadata)
 	if metadata == "" {
 		metadata = existing.Metadata
@@ -1024,7 +1358,7 @@ func (a *App) updateCredentials(reader *bufio.Reader) {
 	}
 
 	fmt.Print("\nUpdating credentials... ")
-	updated, err := a.appService.UpdateCredentials(ctx, updatedCreds)
+	updated, err := a.appService.UpdateCredentials(updateCtx, updatedCreds)
 	if err != nil {
 		fmt.Printf("FAILED: %v\n", err)
 	} else {
@@ -1034,13 +1368,27 @@ func (a *App) updateCredentials(reader *bufio.Reader) {
 }
 
 // deleteCredentials - удалить учётные данные
-func (a *App) deleteCredentials(reader *bufio.Reader) {
+func (a *App) deleteCredentials(reader *bufio.Reader, ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
 	fmt.Print("\nEnter credentials ID to delete: ")
-	id, _ := reader.ReadString('\n')
+	id, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	id = strings.TrimSpace(id)
 
 	fmt.Print("Are you sure? (yes/no): ")
-	confirm, _ := reader.ReadString('\n')
+	confirm, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	confirm = strings.TrimSpace(strings.ToLower(confirm))
 
 	if confirm != "yes" {
@@ -1048,11 +1396,14 @@ func (a *App) deleteCredentials(reader *bufio.Reader) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	deleteCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	fmt.Print("Deleting credentials... ")
-	err := a.appService.DeleteCredentials(ctx, id)
+	err = a.appService.DeleteCredentials(deleteCtx, id)
+	if err != nil {
+		return
+	}
 	if err != nil {
 		fmt.Printf("FAILED: %v\n", err)
 	} else {
@@ -1062,8 +1413,16 @@ func (a *App) deleteCredentials(reader *bufio.Reader) {
 }
 
 // handleTextData - работа с текстовыми данными
-func (a *App) handleTextData(reader *bufio.Reader) {
+func (a *App) handleTextData(reader *bufio.Reader, ctx context.Context) {
 	for {
+		// Проверяем, не отменен ли контекст
+		select {
+		case <-ctx.Done():
+			fmt.Println("Operation cancelled due to shutdown")
+			return
+		default:
+		}
+
 		fmt.Println("\n=== Text Data Management ===")
 		fmt.Println("1. List all texts")
 		fmt.Println("2. Create new text")
@@ -1073,20 +1432,23 @@ func (a *App) handleTextData(reader *bufio.Reader) {
 		fmt.Println("6. Back")
 
 		fmt.Print("\nSelect action: ")
-		input, _ := reader.ReadString('\n')
+		input, err := a.readInputWithContext(reader, ctx)
+		if err != nil {
+			return
+		}
 		input = strings.TrimSpace(input)
 
 		switch input {
 		case "1":
-			a.listTexts()
+			a.listTexts(ctx)
 		case "2":
-			a.createText(reader)
+			a.createText(reader, ctx)
 		case "3":
-			a.viewText(reader)
+			a.viewText(reader, ctx)
 		case "4":
-			a.updateText(reader)
+			a.updateText(reader, ctx)
 		case "5":
-			a.deleteText(reader)
+			a.deleteText(reader, ctx)
 		case "6":
 			return
 		default:
@@ -1096,11 +1458,19 @@ func (a *App) handleTextData(reader *bufio.Reader) {
 }
 
 // listTexts - просмотр текстовых данных
-func (a *App) listTexts() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+func (a *App) listTexts(ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
+	listCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	texts, err := a.appService.GetAllTexts(ctx)
+	texts, err := a.appService.GetAllTexts(listCtx)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
@@ -1124,17 +1494,31 @@ func (a *App) listTexts() {
 }
 
 // createText - создать текстовые данные
-func (a *App) createText(reader *bufio.Reader) {
+func (a *App) createText(reader *bufio.Reader, ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
 	fmt.Println("\n=== Create New Text ===")
 
 	fmt.Print("Metadata (description): ")
-	metadata, _ := reader.ReadString('\n')
+	metadata, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	metadata = strings.TrimSpace(metadata)
 
 	fmt.Println("Enter text content (end with empty line or Ctrl+D):")
 	var lines []string
 	for {
-		line, err := reader.ReadString('\n')
+		line, err := a.readInputWithContext(reader, ctx)
+		if err != nil {
+			return
+		}
 		if err != nil || strings.TrimSpace(line) == "" {
 			break
 		}
@@ -1143,7 +1527,7 @@ func (a *App) createText(reader *bufio.Reader) {
 
 	content := strings.Join(lines, "")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	createCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	dto := &dtos.NewTextData{
@@ -1152,7 +1536,7 @@ func (a *App) createText(reader *bufio.Reader) {
 	}
 
 	fmt.Print("Creating text... ")
-	text, err := a.appService.CreateText(ctx, dto)
+	text, err := a.appService.CreateText(createCtx, dto)
 	if err != nil {
 		fmt.Printf("FAILED: %v\n", err)
 	} else {
@@ -1162,15 +1546,26 @@ func (a *App) createText(reader *bufio.Reader) {
 }
 
 // viewText - просмотреть текстовые данные
-func (a *App) viewText(reader *bufio.Reader) {
+func (a *App) viewText(reader *bufio.Reader, ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
 	fmt.Print("\nEnter text ID: ")
-	id, _ := reader.ReadString('\n')
+	id, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	id = strings.TrimSpace(id)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	viewCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	text, err := a.appService.GetText(ctx, id)
+	text, err := a.appService.GetText(viewCtx, id)
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
 		return
@@ -1188,15 +1583,26 @@ func (a *App) viewText(reader *bufio.Reader) {
 }
 
 // updateText - изменить текстовые данные
-func (a *App) updateText(reader *bufio.Reader) {
+func (a *App) updateText(reader *bufio.Reader, ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
 	fmt.Print("\nEnter text ID to update: ")
-	id, _ := reader.ReadString('\n')
+	id, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	id = strings.TrimSpace(id)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	updateCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
-	existing, err := a.appService.GetText(ctx, id)
+	existing, err := a.appService.GetText(updateCtx, id)
 	if err != nil {
 		fmt.Printf("Error getting text: %v\n", err)
 		return
@@ -1217,7 +1623,10 @@ func (a *App) updateText(reader *bufio.Reader) {
 	fmt.Println("3. Update both metadata and content")
 	fmt.Print("\nSelect option: ")
 
-	option, _ := reader.ReadString('\n')
+	option, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	option = strings.TrimSpace(option)
 
 	var metadata string
@@ -1226,7 +1635,7 @@ func (a *App) updateText(reader *bufio.Reader) {
 	switch option {
 	case "1": // Только метаданные
 		fmt.Print("New metadata: ")
-		metadata, _ = reader.ReadString('\n')
+		metadata, _ = a.readInputWithContext(reader, ctx)
 		metadata = strings.TrimSpace(metadata)
 		content = existing.Data
 
@@ -1234,7 +1643,10 @@ func (a *App) updateText(reader *bufio.Reader) {
 		fmt.Println("Enter new text content (end with empty line):")
 		var lines []string
 		for {
-			line, err := reader.ReadString('\n')
+			line, err := a.readInputWithContext(reader, ctx)
+			if err != nil {
+				return
+			}
 			if err != nil || strings.TrimSpace(line) == "" {
 				break
 			}
@@ -1246,13 +1658,16 @@ func (a *App) updateText(reader *bufio.Reader) {
 
 	case "3": // И метаданные, и содержимое
 		fmt.Print("New metadata: ")
-		metadata, _ = reader.ReadString('\n')
+		metadata, _ = a.readInputWithContext(reader, ctx)
 		metadata = strings.TrimSpace(metadata)
 
 		fmt.Println("Enter new text content (end with empty line):")
 		var lines []string
 		for {
-			line, err := reader.ReadString('\n')
+			line, err := a.readInputWithContext(reader, ctx)
+			if err != nil {
+				return
+			}
 			if err != nil || strings.TrimSpace(line) == "" {
 				break
 			}
@@ -1278,7 +1693,7 @@ func (a *App) updateText(reader *bufio.Reader) {
 	}
 
 	fmt.Print("\nUpdating text... ")
-	updated, err := a.appService.UpdateText(ctx, updatedText)
+	updated, err := a.appService.UpdateText(updateCtx, updatedText)
 	if err != nil {
 		fmt.Printf("FAILED: %v\n", err)
 	} else {
@@ -1288,13 +1703,27 @@ func (a *App) updateText(reader *bufio.Reader) {
 }
 
 // deleteText - удалить текстовые данные
-func (a *App) deleteText(reader *bufio.Reader) {
+func (a *App) deleteText(reader *bufio.Reader, ctx context.Context) {
+	// Проверяем, не отменен ли контекст
+	select {
+	case <-ctx.Done():
+		fmt.Println("Operation cancelled due to shutdown")
+		return
+	default:
+	}
+
 	fmt.Print("\nEnter text ID to delete: ")
-	id, _ := reader.ReadString('\n')
+	id, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	id = strings.TrimSpace(id)
 
 	fmt.Print("Are you sure? (yes/no): ")
-	confirm, _ := reader.ReadString('\n')
+	confirm, err := a.readInputWithContext(reader, ctx)
+	if err != nil {
+		return
+	}
 	confirm = strings.TrimSpace(strings.ToLower(confirm))
 
 	if confirm != "yes" {
@@ -1302,11 +1731,11 @@ func (a *App) deleteText(reader *bufio.Reader) {
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	deleteCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	fmt.Print("Deleting text... ")
-	err := a.appService.DeleteText(ctx, id)
+	err = a.appService.DeleteText(deleteCtx, id)
 	if err != nil {
 		fmt.Printf("FAILED: %v\n", err)
 	} else {
