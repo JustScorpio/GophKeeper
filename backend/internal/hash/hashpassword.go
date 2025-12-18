@@ -1,4 +1,5 @@
-package utils
+// Пакет hash для хэширования данных
+package hash
 
 import (
 	"golang.org/x/crypto/bcrypt"

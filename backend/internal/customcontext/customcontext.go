@@ -1,4 +1,4 @@
-// Пакет customcontext содержит
+// customcontext - содержит контекст с дополнительными данными используемыми приложением
 package customcontext
 
 import "context"

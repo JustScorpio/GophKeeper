@@ -1,4 +1,4 @@
-// SQLite Репозиторий для банковских карт
+// sqlite - SQLite Репозиторий
 package sqlite
 
 import (

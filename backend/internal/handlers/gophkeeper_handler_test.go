@@ -1,3 +1,4 @@
+// handlers_test - тесты хэндлеров
 package handlers_test
 
 import (
@@ -10,12 +11,12 @@ import (
 
 	"github.com/JustScorpio/GophKeeper/backend/internal/customcontext"
 	"github.com/JustScorpio/GophKeeper/backend/internal/handlers"
+	"github.com/JustScorpio/GophKeeper/backend/internal/hash"
 	"github.com/JustScorpio/GophKeeper/backend/internal/middleware/auth"
 	"github.com/JustScorpio/GophKeeper/backend/internal/models/dtos"
 	"github.com/JustScorpio/GophKeeper/backend/internal/models/entities"
 	"github.com/JustScorpio/GophKeeper/backend/internal/repositories/inmemory"
 	"github.com/JustScorpio/GophKeeper/backend/internal/services"
-	"github.com/JustScorpio/GophKeeper/backend/internal/utils"
 	"github.com/go-chi/chi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -242,7 +243,7 @@ func TestRegisterAndLogin(t *testing.T) {
 		assert.NotNil(t, user)
 		assert.Equal(t, newUser.Login, user.Login)
 		assert.NotEqual(t, newUser.Password, user.Password)
-		assert.True(t, utils.CheckPasswordHash(newUser.Password, user.Password))
+		assert.True(t, hash.CheckPasswordHash(newUser.Password, user.Password))
 	})
 
 	t.Run("Регистрация с существующим логином", func(t *testing.T) {
@@ -737,8 +738,8 @@ func TestMultiUserEnvironment(t *testing.T) {
 // TestPasswordHashing - ТЕСТЫ ХЭШИРОВАНИЯ ПАРОЛЕЙ
 func TestPasswordHashing(t *testing.T) {
 	t.Run("Разные пароли дают разные хэши", func(t *testing.T) {
-		hash1, err1 := utils.HashPassword("password1")
-		hash2, err2 := utils.HashPassword("password2")
+		hash1, err1 := hash.HashPassword("password1")
+		hash2, err2 := hash.HashPassword("password2")
 
 		require.NoError(t, err1)
 		require.NoError(t, err2)
@@ -747,8 +748,8 @@ func TestPasswordHashing(t *testing.T) {
 	})
 
 	t.Run("Одинаковые пароли дают разные хэши (из-за соли)", func(t *testing.T) {
-		hash1, err1 := utils.HashPassword("samepassword")
-		hash2, err2 := utils.HashPassword("samepassword")
+		hash1, err1 := hash.HashPassword("samepassword")
+		hash2, err2 := hash.HashPassword("samepassword")
 
 		require.NoError(t, err1)
 		require.NoError(t, err2)
@@ -758,18 +759,18 @@ func TestPasswordHashing(t *testing.T) {
 
 	t.Run("Проверка правильного пароля", func(t *testing.T) {
 		password := "testpassword"
-		hash, err := utils.HashPassword(password)
+		hashpass, err := hash.HashPassword(password)
 		require.NoError(t, err)
 
-		assert.True(t, utils.CheckPasswordHash(password, hash))
+		assert.True(t, hash.CheckPasswordHash(password, hashpass))
 	})
 
 	t.Run("Проверка неправильного пароля", func(t *testing.T) {
 		password := "testpassword"
-		hash, err := utils.HashPassword(password)
+		hashpass, err := hash.HashPassword(password)
 		require.NoError(t, err)
 
-		assert.False(t, utils.CheckPasswordHash("wrongpassword", hash))
+		assert.False(t, hash.CheckPasswordHash("wrongpassword", hashpass))
 	})
 }
 

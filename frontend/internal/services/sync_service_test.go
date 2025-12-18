@@ -1,3 +1,4 @@
+// services_test - тесты сервисов
 package services_test
 
 import (

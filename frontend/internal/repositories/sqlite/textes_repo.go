@@ -1,4 +1,4 @@
-// SQLite Репозиторий для текстовых данных
+// sqlite - SQLite Репозиторий
 package sqlite
 
 import (

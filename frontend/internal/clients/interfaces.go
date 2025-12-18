@@ -1,3 +1,4 @@
+// clients - клиенты для взаимодействия с сервером
 package clients
 
 import (

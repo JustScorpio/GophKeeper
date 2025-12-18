@@ -1,3 +1,4 @@
+// encryption - пакет для шифрования данных
 package encryption
 
 import (

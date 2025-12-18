@@ -1,3 +1,4 @@
+// clients_test - тесты для клиента
 package clients_test
 
 import (

@@ -1,3 +1,4 @@
+// dtos - объекты для передачи данных
 package dtos
 
 import crypto "github.com/JustScorpio/GophKeeper/frontend/internal/encryption"

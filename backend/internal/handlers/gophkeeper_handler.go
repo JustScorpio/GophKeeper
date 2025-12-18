@@ -1,3 +1,4 @@
+// handlers - пакет с обработчиками входящих запросов
 package handlers
 
 import (
@@ -7,11 +8,11 @@ import (
 
 	"github.com/JustScorpio/GophKeeper/backend/internal/customcontext"
 	"github.com/JustScorpio/GophKeeper/backend/internal/customerrors"
+	"github.com/JustScorpio/GophKeeper/backend/internal/hash"
 	"github.com/JustScorpio/GophKeeper/backend/internal/middleware/auth" //В файле c middleware не только middleware, но и ауфные функции
 	"github.com/JustScorpio/GophKeeper/backend/internal/models/dtos"
 	"github.com/JustScorpio/GophKeeper/backend/internal/models/entities"
 	"github.com/JustScorpio/GophKeeper/backend/internal/services"
-	"github.com/JustScorpio/GophKeeper/backend/internal/utils"
 	"github.com/go-chi/chi"
 )
 
@@ -55,7 +56,7 @@ func (h *GophkeeperHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Хэшируем пароль
-	hashedPassword, err := utils.HashPassword(req.Password)
+	hashedPassword, err := hash.HashPassword(req.Password)
 	if err != nil {
 		http.Error(w, "Something went wrong", http.StatusInternalServerError)
 		return
@@ -124,7 +125,7 @@ func (h *GophkeeperHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Проверяем пароль
-	if !utils.CheckPasswordHash(req.Password, user.Password) {
+	if !hash.CheckPasswordHash(req.Password, user.Password) {
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}

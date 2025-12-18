@@ -1,3 +1,4 @@
+// inmemory - репозиторий хранящий данные воперативной памяти
 package inmemory
 
 import (

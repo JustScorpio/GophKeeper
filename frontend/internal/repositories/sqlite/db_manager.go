@@ -1,3 +1,4 @@
+// sqlite - SQLite Репозиторий
 package sqlite
 
 import (

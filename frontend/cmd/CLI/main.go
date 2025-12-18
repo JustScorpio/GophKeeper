@@ -1,3 +1,4 @@
+// main - точка входа в приложение GophKeeper
 package main
 
 import (
@@ -1402,9 +1403,6 @@ func (a *App) deleteCredentials(reader *bufio.Reader, ctx context.Context) {
 	fmt.Print("Deleting credentials... ")
 	err = a.appService.DeleteCredentials(deleteCtx, id)
 	if err != nil {
-		return
-	}
-	if err != nil {
 		fmt.Printf("FAILED: %v\n", err)
 	} else {
 		fmt.Println("SUCCESS")
@@ -1512,16 +1510,18 @@ func (a *App) createText(reader *bufio.Reader, ctx context.Context) {
 	}
 	metadata = strings.TrimSpace(metadata)
 
-	fmt.Println("Enter text content (end with empty line or Ctrl+D):")
+	fmt.Println("Enter text content (end with empty line):")
 	var lines []string
 	for {
 		line, err := a.readInputWithContext(reader, ctx)
 		if err != nil {
 			return
 		}
-		if err != nil || strings.TrimSpace(line) == "" {
+
+		if strings.TrimSpace(line) == "" {
 			break
 		}
+
 		lines = append(lines, line)
 	}
 
@@ -1647,9 +1647,11 @@ func (a *App) updateText(reader *bufio.Reader, ctx context.Context) {
 			if err != nil {
 				return
 			}
-			if err != nil || strings.TrimSpace(line) == "" {
+
+			if strings.TrimSpace(line) == "" {
 				break
 			}
+
 			lines = append(lines, line)
 		}
 
@@ -1668,9 +1670,11 @@ func (a *App) updateText(reader *bufio.Reader, ctx context.Context) {
 			if err != nil {
 				return
 			}
-			if err != nil || strings.TrimSpace(line) == "" {
+
+			if strings.TrimSpace(line) == "" {
 				break
 			}
+
 			lines = append(lines, line)
 		}
 

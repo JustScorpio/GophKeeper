@@ -1,4 +1,4 @@
-// Сервис для работы с локальным хранилищем
+// services - сервисы
 package services
 
 import (

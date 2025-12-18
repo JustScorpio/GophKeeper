@@ -1,3 +1,4 @@
+// migrations - пакет для миграции данных
 package migrations
 
 import (
