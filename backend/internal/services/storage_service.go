@@ -553,15 +553,9 @@ func (s *StorageService) updateUser(ctx context.Context, user *entities.User) (*
 
 	var curUserLogin = customcontext.GetUserID(ctx)
 
+	//Login используется как ключ, его невозможно изменить
 	if curUserLogin != user.Login {
-		// Проверка наличие пользователя в БД
-		existedUser, err := s.usersRepo.Get(ctx, user.Login)
-		if err != nil {
-			return nil, err
-		}
-		if existedUser != nil {
-			return nil, customerrors.AlreadyExistsError
-		}
+		return nil, customerrors.ForbiddenError
 	}
 
 	user, err := s.usersRepo.Update(ctx, user)

@@ -58,10 +58,18 @@ func NewNotFoundError(err error) error {
 	}
 }
 
-// NewHTTPError - создать ошибку с кодом 503
+// NewServiceUnavailableError - создать ошибку с кодом 503
 func NewServiceUnavailableError(err error) error {
 	return &HTTPError{
 		Code: http.StatusServiceUnavailable,
+		Err:  err,
+	}
+}
+
+// NewForbiddenError - создать ошибку с кодом 403
+func NewForbiddenError(err error) error {
+	return &HTTPError{
+		Code: http.StatusForbidden,
 		Err:  err,
 	}
 }
@@ -73,4 +81,6 @@ var (
 	ServiceUnavailableError = NewServiceUnavailableError(errors.New("service is shutting down"))
 	//UnsupportedOperation - method is not allowed
 	UnsupportedOperation = NewNotAllowedError(errors.New("method is not allowed"))
+	//Forbidden - operation is forbidden
+	ForbiddenError = NewForbiddenError(errors.New("operation is forbidden"))
 )
