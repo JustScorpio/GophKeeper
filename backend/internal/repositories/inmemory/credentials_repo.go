@@ -102,14 +102,13 @@ func (r *InMemoryCredentialsRepo) Update(ctx context.Context, entity *entities.C
 	// Проверяем существование и права
 	existing, exists := r.storage[entity.ID]
 	if !exists {
-		return nil, fmt.Errorf("credentials with ID %s not found", entity.ID)
+		return nil, nil
 	}
 
 	if existing.OwnerID != userID {
-		return nil, errors.New("access denied")
+		return nil, nil
 	}
 
-	// Обновляем только разрешенные поля
 	entity.OwnerID = userID
 	r.storage[entity.ID] = *entity
 
@@ -117,21 +116,17 @@ func (r *InMemoryCredentialsRepo) Update(ctx context.Context, entity *entities.C
 }
 
 // Delete - удалить сущность
-func (r *InMemoryCredentialsRepo) Delete(ctx context.Context, id string) error {
+func (r *InMemoryCredentialsRepo) Delete(ctx context.Context, id string) (*entities.Credentials, error) {
 	userID := customcontext.GetUserID(ctx)
 	if userID == "" {
-		return errors.New("user ID is required")
+		return nil, errors.New("user ID is required")
 	}
 
 	cred, exists := r.storage[id]
-	if !exists {
-		return fmt.Errorf("credentials with ID %s not found", id)
-	}
-
-	if cred.OwnerID != userID {
-		return errors.New("access denied")
+	if !exists || cred.OwnerID != userID {
+		return nil, nil
 	}
 
 	delete(r.storage, id)
-	return nil
+	return &cred, nil
 }

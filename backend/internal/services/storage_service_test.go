@@ -189,7 +189,8 @@ func TestStorageService_UserOperations(t *testing.T) {
 
 	t.Run("Удаление пользователя", func(t *testing.T) {
 		// Удаляем пользователя
-		err := service.DeleteUser(ctx, testData.User.Login)
+		ctxWithUser := customcontext.WithUserID(ctx, testData.User.Login)
+		_, err := service.DeleteUser(ctxWithUser, testData.User.Login)
 
 		require.NoError(t, err)
 
@@ -289,7 +290,7 @@ func TestStorageService_BinaryOperations(t *testing.T) {
 		require.NoError(t, err)
 
 		// Удаляем
-		err = service.DeleteBinary(ctxWithUser, createdBinary.ID)
+		deletedBinary, err := service.DeleteBinary(ctxWithUser, createdBinary.ID)
 
 		require.NoError(t, err)
 
@@ -297,6 +298,7 @@ func TestStorageService_BinaryOperations(t *testing.T) {
 		binary, err := service.GetBinary(ctxWithUser, createdBinary.ID)
 
 		require.NoError(t, err)
+		assert.Equal(t, deletedBinary, createdBinary)
 		assert.Nil(t, binary)
 	})
 }
@@ -359,13 +361,14 @@ func TestStorageService_CardOperations(t *testing.T) {
 		createdCard, err := service.CreateCard(ctxWithUser, &testData.Card)
 		require.NoError(t, err)
 
-		err = service.DeleteCard(ctxWithUser, createdCard.ID)
+		deletedCard, err := service.DeleteCard(ctxWithUser, createdCard.ID)
 
 		require.NoError(t, err)
 
 		card, err := service.GetCard(ctxWithUser, createdCard.ID)
 
 		require.NoError(t, err)
+		assert.Equal(t, deletedCard, createdCard)
 		assert.Nil(t, card)
 	})
 }
@@ -424,13 +427,14 @@ func TestStorageService_CredentialsOperations(t *testing.T) {
 		createdCreds, err := service.CreateCredentials(ctxWithUser, &testData.Credentials)
 		require.NoError(t, err)
 
-		err = service.DeleteCredentials(ctxWithUser, createdCreds.ID)
+		deletedCreds, err := service.DeleteCredentials(ctxWithUser, createdCreds.ID)
 
 		require.NoError(t, err)
 
 		creds, err := service.GetCredentials(ctxWithUser, createdCreds.ID)
 
 		require.NoError(t, err)
+		assert.Equal(t, deletedCreds, createdCreds)
 		assert.Nil(t, creds)
 	})
 }
@@ -488,13 +492,14 @@ func TestStorageService_TextOperations(t *testing.T) {
 		createdText, err := service.CreateText(ctxWithUser, &testData.Text)
 		require.NoError(t, err)
 
-		err = service.DeleteText(ctxWithUser, createdText.ID)
+		deletedText, err := service.DeleteText(ctxWithUser, createdText.ID)
 
 		require.NoError(t, err)
 
 		text, err := service.GetText(ctxWithUser, createdText.ID)
 
 		require.NoError(t, err)
+		assert.Equal(t, deletedText, createdText)
 		assert.Nil(t, text)
 	})
 }

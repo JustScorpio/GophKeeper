@@ -104,14 +104,13 @@ func (r *InMemoryCardsRepo) Update(ctx context.Context, entity *entities.CardInf
 	// Проверяем существование и права
 	existing, exists := r.storage[entity.ID]
 	if !exists {
-		return nil, fmt.Errorf("card with ID %s not found", entity.ID)
+		return nil, nil
 	}
 
 	if existing.OwnerID != userID {
-		return nil, errors.New("access denied")
+		return nil, nil
 	}
 
-	// Обновляем только разрешенные поля
 	entity.OwnerID = userID
 	r.storage[entity.ID] = *entity
 
@@ -119,21 +118,17 @@ func (r *InMemoryCardsRepo) Update(ctx context.Context, entity *entities.CardInf
 }
 
 // Delete - удалить сущность
-func (r *InMemoryCardsRepo) Delete(ctx context.Context, id string) error {
+func (r *InMemoryCardsRepo) Delete(ctx context.Context, id string) (*entities.CardInformation, error) {
 	userID := customcontext.GetUserID(ctx)
 	if userID == "" {
-		return errors.New("user ID is required")
+		return nil, errors.New("user ID is required")
 	}
 
 	card, exists := r.storage[id]
-	if !exists {
-		return fmt.Errorf("card with ID %s not found", id)
-	}
-
-	if card.OwnerID != userID {
-		return errors.New("access denied")
+	if !exists || card.OwnerID != userID {
+		return nil, nil
 	}
 
 	delete(r.storage, id)
-	return nil
+	return &card, nil
 }

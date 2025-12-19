@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/JustScorpio/GophKeeper/backend/internal/customcontext"
 	"github.com/JustScorpio/GophKeeper/backend/internal/models/dtos"
 	"github.com/JustScorpio/GophKeeper/backend/internal/models/entities"
 )
@@ -70,7 +71,7 @@ func (r *InMemoryUsersRepo) Update(ctx context.Context, entity *entities.User) (
 
 	// Проверка существования пользователя
 	if _, exists := r.storage[entity.Login]; !exists {
-		return nil, fmt.Errorf("user with login %s not found", entity.Login)
+		return nil, nil
 	}
 
 	r.storage[entity.Login] = *entity
@@ -78,11 +79,13 @@ func (r *InMemoryUsersRepo) Update(ctx context.Context, entity *entities.User) (
 }
 
 // Delete - удалить сущность
-func (r *InMemoryUsersRepo) Delete(ctx context.Context, login string) error {
-	if _, exists := r.storage[login]; !exists {
-		return fmt.Errorf("user with login %s not found", login)
+func (r *InMemoryUsersRepo) Delete(ctx context.Context, login string) (*entities.User, error) {
+	curUserID := customcontext.GetUserID(ctx)
+	user, exists := r.storage[login]
+	if !exists || curUserID != login {
+		return nil, nil
 	}
 
 	delete(r.storage, login)
-	return nil
+	return &user, nil
 }

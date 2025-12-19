@@ -88,6 +88,9 @@ func (r *PgTextsRepo) Update(ctx context.Context, text *entities.TextData) (*ent
 	err := r.db.QueryRow(ctx, "UPDATE Texts SET data = $2, metadata = $3 WHERE id = $1 AND ownerid = $4 RETURNING id, data, metadata, ownerid", text.ID, text.Data, text.Metadata, userID).Scan(&updatedEntity.ID, &updatedEntity.Data, &updatedEntity.Metadata, &updatedEntity.OwnerID)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil // Запись не найдена
+		}
 		return nil, err
 	}
 
@@ -95,9 +98,18 @@ func (r *PgTextsRepo) Update(ctx context.Context, text *entities.TextData) (*ent
 }
 
 // Delete - удалить сущность
-func (r *PgTextsRepo) Delete(ctx context.Context, id string) error {
+func (r *PgTextsRepo) Delete(ctx context.Context, id string) (*entities.TextData, error) {
 	userID := customcontext.GetUserID((ctx))
 
-	_, err := r.db.Exec(ctx, "DELETE FROM Texts WHERE id = $1 AND ownerid = $2", id, userID)
-	return err
+	var deletedText entities.TextData
+	err := r.db.QueryRow(ctx, "DELETE FROM Texts WHERE id = $1 AND ownerid = $2 RETURNING id, data, metadata, ownerid", id, userID).Scan(&deletedText.ID, &deletedText.Data, &deletedText.Metadata, &deletedText.OwnerID)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil // Запись не найдена
+		}
+		return nil, err
+	}
+
+	return &deletedText, err
 }

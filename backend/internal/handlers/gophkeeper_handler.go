@@ -330,6 +330,10 @@ func (h *GophkeeperHandler) UpdateBinary(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	if updatedBinary == nil {
+		http.Error(w, "Not Found", http.StatusNotFound)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(updatedBinary)
@@ -354,7 +358,8 @@ func (h *GophkeeperHandler) DeleteBinary(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	err := h.service.DeleteBinary(r.Context(), id)
+	deletedBinary, err := h.service.DeleteBinary(r.Context(), id)
+
 	if err != nil {
 		var statusCode = http.StatusInternalServerError
 
@@ -365,6 +370,10 @@ func (h *GophkeeperHandler) DeleteBinary(w http.ResponseWriter, r *http.Request)
 
 		http.Error(w, err.Error(), statusCode)
 		return
+	}
+
+	if deletedBinary == nil {
+		http.Error(w, "Not Found", http.StatusNotFound)
 	}
 
 	w.WriteHeader(http.StatusGone)
@@ -547,6 +556,10 @@ func (h *GophkeeperHandler) UpdateCard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if updatedCard == nil {
+		http.Error(w, "Not Found", http.StatusNotFound)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(updatedCard)
@@ -571,7 +584,7 @@ func (h *GophkeeperHandler) DeleteCard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.service.DeleteCard(r.Context(), id)
+	deletedCard, err := h.service.DeleteCard(r.Context(), id)
 	if err != nil {
 		var statusCode = http.StatusInternalServerError
 
@@ -582,6 +595,10 @@ func (h *GophkeeperHandler) DeleteCard(w http.ResponseWriter, r *http.Request) {
 
 		http.Error(w, err.Error(), statusCode)
 		return
+	}
+
+	if deletedCard == nil {
+		http.Error(w, "Not Found", http.StatusNotFound)
 	}
 
 	w.WriteHeader(http.StatusGone)
@@ -764,6 +781,10 @@ func (h *GophkeeperHandler) UpdateCredentials(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	if updatedCredentials == nil {
+		http.Error(w, "Not Found", http.StatusNotFound)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(updatedCredentials)
@@ -788,7 +809,7 @@ func (h *GophkeeperHandler) DeleteCredentials(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	err := h.service.DeleteCredentials(r.Context(), id)
+	deletedCredentials, err := h.service.DeleteCredentials(r.Context(), id)
 	if err != nil {
 		var statusCode = http.StatusInternalServerError
 
@@ -799,6 +820,10 @@ func (h *GophkeeperHandler) DeleteCredentials(w http.ResponseWriter, r *http.Req
 
 		http.Error(w, err.Error(), statusCode)
 		return
+	}
+
+	if deletedCredentials == nil {
+		http.Error(w, "Not Found", http.StatusNotFound)
 	}
 
 	w.WriteHeader(http.StatusGone)
@@ -991,6 +1016,10 @@ func (h *GophkeeperHandler) UpdateText(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if updatedText == nil {
+		http.Error(w, "Not Found", http.StatusNotFound)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(updatedText)
@@ -1015,7 +1044,7 @@ func (h *GophkeeperHandler) DeleteText(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := h.service.DeleteText(r.Context(), id)
+	deletedText, err := h.service.DeleteText(r.Context(), id)
 	if err != nil {
 		var statusCode = http.StatusInternalServerError
 
@@ -1026,6 +1055,10 @@ func (h *GophkeeperHandler) DeleteText(w http.ResponseWriter, r *http.Request) {
 
 		http.Error(w, err.Error(), statusCode)
 		return
+	}
+
+	if deletedText == nil {
+		http.Error(w, "Not Found", http.StatusNotFound)
 	}
 
 	w.WriteHeader(http.StatusGone)

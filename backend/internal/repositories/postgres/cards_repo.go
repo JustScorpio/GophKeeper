@@ -88,15 +88,28 @@ func (r *PgCardsRepo) Update(ctx context.Context, card *entities.CardInformation
 	err := r.db.QueryRow(ctx, "UPDATE Cards SET number = $2, cardholder = $3, expirationdate = $4, cvv = $5, metadata = $6 WHERE id = $1 AND ownerid = $7 RETURNING id, number, cardholder, expirationdate, cvv, metadata, ownerid", card.ID, card.Number, card.CardHolder, card.ExpirationDate, card.CVV, card.Metadata, userID).Scan(&updatedEntity.ID, &updatedEntity.Number, &updatedEntity.CardHolder, &updatedEntity.ExpirationDate, &updatedEntity.CVV, &updatedEntity.Metadata, &updatedEntity.OwnerID)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil // Запись не найдена
+		}
 		return nil, err
 	}
+
 	return &updatedEntity, nil
 }
 
 // Delete - удалить сущность
-func (r *PgCardsRepo) Delete(ctx context.Context, id string) error {
+func (r *PgCardsRepo) Delete(ctx context.Context, id string) (*entities.CardInformation, error) {
 	userID := customcontext.GetUserID((ctx))
 
-	_, err := r.db.Exec(ctx, "DELETE FROM Cards WHERE id = $1 AND ownerid = $2", id, userID)
-	return err
+	var deletedCard entities.CardInformation
+	err := r.db.QueryRow(ctx, "DELETE FROM Cards WHERE id = $1 AND ownerid = $2 RETURNING id, number, cardholder, expirationdate, cvv, metadata, ownerid", id, userID).Scan(&deletedCard.ID, &deletedCard.Number, &deletedCard.CardHolder, &deletedCard.ExpirationDate, &deletedCard.CVV, &deletedCard.Metadata, &deletedCard.OwnerID)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil // Запись не найдена
+		}
+		return nil, err
+	}
+
+	return &deletedCard, err
 }

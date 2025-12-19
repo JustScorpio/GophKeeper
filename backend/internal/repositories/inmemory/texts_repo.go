@@ -101,14 +101,13 @@ func (r *InMemoryTextsRepo) Update(ctx context.Context, entity *entities.TextDat
 	// Проверяем существование и права
 	existing, exists := r.storage[entity.ID]
 	if !exists {
-		return nil, fmt.Errorf("text with ID %s not found", entity.ID)
+		return nil, nil
 	}
 
 	if existing.OwnerID != userID {
-		return nil, errors.New("access denied")
+		return nil, nil
 	}
 
-	// Обновляем только разрешенные поля
 	entity.OwnerID = userID
 	r.storage[entity.ID] = *entity
 
@@ -116,21 +115,17 @@ func (r *InMemoryTextsRepo) Update(ctx context.Context, entity *entities.TextDat
 }
 
 // Delete - удалить сущность
-func (r *InMemoryTextsRepo) Delete(ctx context.Context, id string) error {
+func (r *InMemoryTextsRepo) Delete(ctx context.Context, id string) (*entities.TextData, error) {
 	userID := customcontext.GetUserID(ctx)
 	if userID == "" {
-		return errors.New("user ID is required")
+		return nil, errors.New("user ID is required")
 	}
 
 	text, exists := r.storage[id]
-	if !exists {
-		return fmt.Errorf("text with ID %s not found", id)
-	}
-
-	if text.OwnerID != userID {
-		return errors.New("access denied")
+	if !exists || text.OwnerID != userID {
+		return nil, nil
 	}
 
 	delete(r.storage, id)
-	return nil
+	return &text, nil
 }

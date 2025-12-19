@@ -101,6 +101,9 @@ func (r *PgBinariesRepo) Update(ctx context.Context, binaryData *entities.Binary
 	err := r.db.QueryRow(ctx, "UPDATE Binaries SET data = $2, metadata = $3 WHERE id = $1 AND ownerid = $4 RETURNING id, data, metadata, ownerid", binaryData.ID, binaryData.Data, binaryData.Metadata, userID).Scan(&updatedEntity.ID, &updatedEntity.Data, &updatedEntity.Metadata, &updatedEntity.OwnerID)
 
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil // Запись не найдена
+		}
 		return nil, err
 	}
 
@@ -108,9 +111,18 @@ func (r *PgBinariesRepo) Update(ctx context.Context, binaryData *entities.Binary
 }
 
 // Delete - удалить сущность
-func (r *PgBinariesRepo) Delete(ctx context.Context, id string) error {
+func (r *PgBinariesRepo) Delete(ctx context.Context, id string) (*entities.BinaryData, error) {
 	userID := customcontext.GetUserID((ctx))
 
-	_, err := r.db.Exec(ctx, "DELETE FROM Binaries WHERE id = $1 AND ownerid = $2", id, userID)
-	return err
+	var deletedBinary entities.BinaryData
+	err := r.db.QueryRow(ctx, "DELETE FROM Binaries WHERE id = $1 AND ownerid = $2 RETURNING id, data, metadata, ownerid", id, userID).Scan(&deletedBinary.ID, &deletedBinary.Data, &deletedBinary.Metadata, &deletedBinary.OwnerID)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil // Запись не найдена
+		}
+		return nil, err
+	}
+
+	return &deletedBinary, err
 }

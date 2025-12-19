@@ -88,15 +88,28 @@ func (r *PgCredentialsRepo) Update(ctx context.Context, credentials *entities.Cr
 	err := r.db.QueryRow(ctx, "UPDATE Credentials SET login = $2, password = $3, metadata = $4 WHERE id = $1 AND ownerid = $5 RETURNING id, login, password, metadata, ownerid", credentials.ID, credentials.Login, credentials.Password, credentials.Metadata, userID).Scan(&updatedEntity.ID, &updatedEntity.Login, &updatedEntity.Password, &updatedEntity.Metadata, &updatedEntity.OwnerID)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to update credentials: %w", err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil // Запись не найдена
+		}
+		return nil, err
 	}
+
 	return &updatedEntity, nil
 }
 
 // Delete - удалить сущность
-func (r *PgCredentialsRepo) Delete(ctx context.Context, id string) error {
+func (r *PgCredentialsRepo) Delete(ctx context.Context, id string) (*entities.Credentials, error) {
 	userID := customcontext.GetUserID((ctx))
 
-	_, err := r.db.Exec(ctx, "DELETE FROM Credentials WHERE id = $1 AND ownerid = $2", id, userID)
-	return err
+	var deletedCredentials entities.Credentials
+	err := r.db.QueryRow(ctx, "DELETE FROM Credentials WHERE id = $1 AND ownerid = $2 RETURNING id, login, password, metadata, ownerid", id, userID).Scan(&deletedCredentials.ID, &deletedCredentials.Login, &deletedCredentials.Password, &deletedCredentials.Metadata, &deletedCredentials.OwnerID)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, nil // Запись не найдена
+		}
+		return nil, err
+	}
+
+	return &deletedCredentials, err
 }

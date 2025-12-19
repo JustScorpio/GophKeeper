@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/JustScorpio/GophKeeper/backend/internal/customcontext"
@@ -854,4 +855,743 @@ func TestMiddleware(t *testing.T) {
 		// Middleware должен вернуть 401
 		assert.Equal(t, http.StatusUnauthorized, w.Code)
 	})
+}
+
+// TestContentTypeValidation - тесты валидации Content-Type
+func TestContentTypeValidation(t *testing.T) {
+	router, _ := createTestHandlerAndRouter()
+
+	// Регистрируем пользователя
+	registerTestUser(t, router, "ctuser", "password123")
+
+	testData := getTestData()
+
+	tests := []struct {
+		name        string
+		method      string
+		path        string
+		contentType string
+		body        interface{}
+		auth        bool
+		userLogin   string
+		expected    int
+	}{
+		{
+			name:        "CreateBinary без Content-Type",
+			method:      "POST",
+			path:        "/api/user/binaries",
+			contentType: "",
+			body:        testData.binary,
+			auth:        true,
+			userLogin:   "ctuser",
+			expected:    http.StatusBadRequest,
+		},
+		{
+			name:        "CreateBinary с неправильным Content-Type",
+			method:      "POST",
+			path:        "/api/user/binaries",
+			contentType: "text/plain",
+			body:        testData.binary,
+			auth:        true,
+			userLogin:   "ctuser",
+			expected:    http.StatusBadRequest,
+		},
+		{
+			name:        "Register без Content-Type",
+			method:      "POST",
+			path:        "/register",
+			contentType: "",
+			body:        dtos.NewUser{Login: "test", Password: "test"},
+			auth:        false,
+			userLogin:   "",
+			expected:    http.StatusBadRequest,
+		},
+		{
+			name:        "Login с неправильным Content-Type",
+			method:      "POST",
+			path:        "/login",
+			contentType: "application/xml",
+			body:        map[string]string{"login": "test", "password": "test"},
+			auth:        false,
+			userLogin:   "",
+			expected:    http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var req *http.Request
+			if tt.body != nil {
+				jsonBody, _ := json.Marshal(tt.body)
+				req = httptest.NewRequest(tt.method, tt.path, bytes.NewReader(jsonBody))
+				if tt.contentType != "" {
+					req.Header.Set("Content-Type", tt.contentType)
+				}
+			} else {
+				req = httptest.NewRequest(tt.method, tt.path, nil)
+				if tt.contentType != "" {
+					req.Header.Set("Content-Type", tt.contentType)
+				}
+			}
+
+			if tt.auth {
+				ctx := customcontext.WithUserID(req.Context(), tt.userLogin)
+				req = req.WithContext(ctx)
+			}
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expected, w.Code,
+				"Expected status %d, got %d for %s", tt.expected, w.Code, tt.name)
+		})
+	}
+}
+
+// TestMethodNotAllowed - тесты неподдерживаемых методов HTTP
+func TestMethodNotAllowed(t *testing.T) {
+	router, _ := createTestHandlerAndRouter()
+
+	// Регистрируем пользователя
+	registerTestUser(t, router, "methoduser", "password123")
+
+	testData := getTestData()
+
+	tests := []struct {
+		name      string
+		method    string
+		path      string
+		auth      bool
+		userLogin string
+	}{
+		{
+			name:      "Register с методом GET",
+			method:    "GET",
+			path:      "/register",
+			auth:      false,
+			userLogin: "",
+		},
+		{
+			name:      "Login с методом PUT",
+			method:    "PUT",
+			path:      "/login",
+			auth:      false,
+			userLogin: "",
+		},
+		{
+			name:      "GetBinary с методом POST",
+			method:    "POST",
+			path:      "/api/user/binaries/123",
+			auth:      true,
+			userLogin: "methoduser",
+		},
+		{
+			name:      "UpdateBinary с методом PATCH",
+			method:    "PATCH",
+			path:      "/api/user/binaries",
+			auth:      true,
+			userLogin: "methoduser",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var req *http.Request
+			if tt.method == "POST" || tt.method == "PUT" || tt.method == "PATCH" {
+				// Для методов с телом добавляем JSON
+				jsonBody, _ := json.Marshal(testData.binary)
+				req = httptest.NewRequest(tt.method, tt.path, bytes.NewReader(jsonBody))
+				req.Header.Set("Content-Type", "application/json")
+			} else {
+				req = httptest.NewRequest(tt.method, tt.path, nil)
+			}
+
+			if tt.auth {
+				ctx := customcontext.WithUserID(req.Context(), tt.userLogin)
+				req = req.WithContext(ctx)
+			}
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusMethodNotAllowed, w.Code,
+				"Expected Method Not Allowed for %s %s", tt.method, tt.path)
+		})
+	}
+}
+
+// TestValidationErrors - тесты валидации входных данных
+func TestValidationErrors(t *testing.T) {
+	router, _ := createTestHandlerAndRouter()
+
+	// Регистрируем пользователя
+	registerTestUser(t, router, "validuser", "password123")
+
+	tests := []struct {
+		name     string
+		method   string
+		path     string
+		body     interface{}
+		expected int
+		errorMsg string
+	}{
+		{
+			name:     "Register без логина",
+			method:   "POST",
+			path:     "/register",
+			body:     dtos.NewUser{Login: "", Password: "password"},
+			expected: http.StatusBadRequest,
+			errorMsg: "Login and password are required",
+		},
+		{
+			name:     "Register без пароля",
+			method:   "POST",
+			path:     "/register",
+			body:     dtos.NewUser{Login: "user", Password: ""},
+			expected: http.StatusBadRequest,
+			errorMsg: "Login and password are required",
+		},
+		{
+			name:     "Login без логина",
+			method:   "POST",
+			path:     "/login",
+			body:     map[string]string{"login": "", "password": "password"},
+			expected: http.StatusBadRequest,
+			errorMsg: "Login and password are required",
+		},
+		{
+			name:     "CreateBinary с пустыми данными",
+			method:   "POST",
+			path:     "/api/user/binaries",
+			body:     dtos.NewBinaryData{Data: []byte(""), NewSecureEntity: dtos.NewSecureEntity{Metadata: "test"}},
+			expected: http.StatusBadRequest,
+			errorMsg: "Data cannot be empty",
+		},
+		{
+			name:   "CreateCard без номера",
+			method: "POST",
+			path:   "/api/user/card",
+			body: dtos.NewCardInformation{
+				Number:          "",
+				CardHolder:      "John Doe",
+				ExpirationDate:  "12/25",
+				CVV:             "123",
+				NewSecureEntity: dtos.NewSecureEntity{Metadata: "test"},
+			},
+			expected: http.StatusBadRequest,
+			errorMsg: "All card fields are required",
+		},
+		{
+			name:   "CreateCredentials без пароля",
+			method: "POST",
+			path:   "/api/user/credentials",
+			body: dtos.NewCredentials{
+				Login:           "test",
+				Password:        "",
+				NewSecureEntity: dtos.NewSecureEntity{Metadata: "test"},
+			},
+			expected: http.StatusBadRequest,
+			errorMsg: "Login and password are required",
+		},
+		{
+			name:     "CreateText с пустым текстом",
+			method:   "POST",
+			path:     "/api/user/texts",
+			body:     dtos.NewTextData{Data: "", NewSecureEntity: dtos.NewSecureEntity{Metadata: "test"}},
+			expected: http.StatusBadRequest,
+			errorMsg: "Text data cannot be empty",
+		},
+		{
+			name:   "UpdateBinary без ID",
+			method: "PUT",
+			path:   "/api/user/binaries",
+			body: entities.BinaryData{
+				Data:         []byte("data"),
+				SecureEntity: entities.SecureEntity{ID: "", Metadata: "test"},
+			},
+			expected: http.StatusBadRequest,
+			errorMsg: "ID is required",
+		},
+		{
+			name:   "UpdateCard без ID",
+			method: "PUT",
+			path:   "/api/user/card",
+			body: entities.CardInformation{
+				Number:         "4111111111111111",
+				CardHolder:     "John Doe",
+				ExpirationDate: "12/25",
+				CVV:            "123",
+				SecureEntity:   entities.SecureEntity{ID: "", Metadata: "test"},
+			},
+			expected: http.StatusBadRequest,
+			errorMsg: "ID is required",
+		},
+		{
+			name:   "UpdateCredentials без ID",
+			method: "PUT",
+			path:   "/api/user/credentials",
+			body: entities.Credentials{
+				Login:        "test",
+				Password:     "password",
+				SecureEntity: entities.SecureEntity{ID: "", Metadata: "test"},
+			},
+			expected: http.StatusBadRequest,
+			errorMsg: "ID is required",
+		},
+		{
+			name:   "UpdateText без ID",
+			method: "PUT",
+			path:   "/api/user/texts",
+			body: entities.TextData{
+				Data:         "test text",
+				SecureEntity: entities.SecureEntity{ID: "", Metadata: "test"},
+			},
+			expected: http.StatusBadRequest,
+			errorMsg: "ID is required",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			jsonBody, _ := json.Marshal(tt.body)
+			req := httptest.NewRequest(tt.method, tt.path, bytes.NewReader(jsonBody))
+			req.Header.Set("Content-Type", "application/json")
+
+			// Для защищенных маршрутов добавляем контекст
+			if strings.HasPrefix(tt.path, "/api/user") {
+				ctx := customcontext.WithUserID(req.Context(), "validuser")
+				req = req.WithContext(ctx)
+			}
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expected, w.Code,
+				"Expected status %d, got %d for %s", tt.expected, w.Code, tt.name)
+
+			if tt.errorMsg != "" {
+				assert.Contains(t, w.Body.String(), tt.errorMsg)
+			}
+		})
+	}
+}
+
+// TestDataSizeLimits - тесты ограничений размера данных
+func TestDataSizeLimits(t *testing.T) {
+	router, _ := createTestHandlerAndRouter()
+
+	// Регистрируем пользователя
+	registerTestUser(t, router, "sizeuser", "password123")
+
+	t.Run("CreateBinary с данными больше 10MB", func(t *testing.T) {
+		// Создаем данные размером 11MB
+		largeData := make([]byte, 11*1024*1024) // 11MB
+		for i := range largeData {
+			largeData[i] = byte(i % 256)
+		}
+
+		binaryData := dtos.NewBinaryData{
+			Data:            largeData,
+			NewSecureEntity: dtos.NewSecureEntity{Metadata: "large data"},
+		}
+
+		req := createTestRequest("POST", "/api/user/binaries", binaryData, true, "sizeuser")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+		assert.Contains(t, w.Body.String(), "Data too large")
+	})
+
+	t.Run("CreateText с текстом больше 1MB", func(t *testing.T) {
+		// Создаем текст размером 1.1MB
+		largeText := strings.Repeat("A", 1024*1024+1024)
+
+		textData := dtos.NewTextData{
+			Data:            largeText,
+			NewSecureEntity: dtos.NewSecureEntity{Metadata: "large text"},
+		}
+
+		req := createTestRequest("POST", "/api/user/texts", textData, true, "sizeuser")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+		assert.Contains(t, w.Body.String(), "Text too large")
+	})
+
+	t.Run("UpdateBinary с данными больше 10MB", func(t *testing.T) {
+		// Сначала создаем нормальную запись
+		binary := createBinary(t, router, "sizeuser", dtos.NewBinaryData{
+			Data:            []byte("initial data"),
+			NewSecureEntity: dtos.NewSecureEntity{Metadata: "test"},
+		})
+
+		// Пытаемся обновить с большими данными
+		largeData := make([]byte, 11*1024*1024)
+		updateData := entities.BinaryData{
+			Data: largeData,
+			SecureEntity: entities.SecureEntity{
+				ID:       binary.ID,
+				Metadata: "updated",
+			},
+		}
+
+		req := createTestRequest("PUT", "/api/user/binaries", updateData, true, "sizeuser")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code)
+	})
+}
+
+// TestCookieHandling - тесты работы с cookies
+func TestCookieHandling(t *testing.T) {
+	router, _ := createTestHandlerAndRouter()
+
+	t.Run("Установка JWT cookie при регистрации", func(t *testing.T) {
+		newUser := dtos.NewUser{
+			Login:    "cookieuser",
+			Password: "password123",
+		}
+
+		req := createTestRequest("POST", "/register", newUser, false, "")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		// Проверяем, что cookie установлена
+		cookies := w.Result().Cookies()
+		var jwtCookie *http.Cookie
+		for _, cookie := range cookies {
+			if cookie.Name == "jwt_token" {
+				jwtCookie = cookie
+				break
+			}
+		}
+
+		assert.NotNil(t, jwtCookie, "JWT cookie should be set")
+		assert.NotEmpty(t, jwtCookie.Value, "JWT token should not be empty")
+		assert.True(t, jwtCookie.HttpOnly, "JWT cookie should be HttpOnly")
+	})
+
+	t.Run("Установка JWT cookie при логине", func(t *testing.T) {
+		// Сначала регистрируем пользователя
+		registerTestUser(t, router, "loginuser", "password123")
+
+		// Логинимся
+		loginReq := map[string]string{
+			"login":    "loginuser",
+			"password": "password123",
+		}
+
+		req := createTestRequest("POST", "/login", loginReq, false, "")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+
+		// Проверяем cookie
+		cookies := w.Result().Cookies()
+		var jwtCookie *http.Cookie
+		for _, cookie := range cookies {
+			if cookie.Name == "jwt_token" {
+				jwtCookie = cookie
+				break
+			}
+		}
+
+		assert.NotNil(t, jwtCookie, "JWT cookie should be set after login")
+	})
+}
+
+// TestEmptyArraysResponse - тесты возврата пустых массивов
+func TestEmptyArraysResponse(t *testing.T) {
+	router, _ := createTestHandlerAndRouter()
+
+	// Регистрируем пользователя
+	registerTestUser(t, router, "emptyuser", "password123")
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"GetAllBinaries с пустым результатом", "/api/user/binaries"},
+		{"GetAllCards с пустым результатом", "/api/user/cards"},
+		{"GetAllCredentials с пустым результатом", "/api/user/credentials"},
+		{"GetAllTexts с пустым результатом", "/api/user/texts"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := createTestRequest("GET", tt.path, nil, true, "emptyuser")
+			w := httptest.NewRecorder()
+
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusOK, w.Code)
+
+			// Проверяем, что возвращается пустой массив
+			var response interface{}
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			require.NoError(t, err)
+
+			// В зависимости от типа ответа проверяем структуру
+			switch tt.path {
+			case "/api/user/binaries":
+				var arr []entities.BinaryData
+				err = json.Unmarshal(w.Body.Bytes(), &arr)
+				require.NoError(t, err)
+				assert.NotNil(t, arr)
+				assert.Equal(t, 0, len(arr))
+			case "/api/user/cards":
+				var arr []entities.CardInformation
+				err = json.Unmarshal(w.Body.Bytes(), &arr)
+				require.NoError(t, err)
+				assert.NotNil(t, arr)
+				assert.Equal(t, 0, len(arr))
+			}
+		})
+	}
+}
+
+// TestUpdateScenarios - тесты сценариев обновления
+func TestUpdateScenarios(t *testing.T) {
+	router, _ := createTestHandlerAndRouter()
+	testData := getTestData()
+
+	// Регистрируем пользователя
+	registerTestUser(t, router, "updateuser", "password123")
+
+	t.Run("Обновление несуществующей записи", func(t *testing.T) {
+		updateData := entities.BinaryData{
+			Data: []byte("updated data"),
+			SecureEntity: entities.SecureEntity{
+				ID:       "non-existent-id",
+				Metadata: "updated",
+			},
+		}
+
+		req := createTestRequest("PUT", "/api/user/binaries", updateData, true, "updateuser")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		// Сервис должен вернуть 404
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+
+	t.Run("Обновление записи другого пользователя", func(t *testing.T) {
+		// Создаем второго пользователя
+		registerTestUser(t, router, "updateuser2", "password456")
+
+		// user1 создает запись
+		binary := createBinary(t, router, "updateuser", testData.binary)
+
+		// user2 пытается обновить запись user1
+		updateData := entities.BinaryData{
+			Data: []byte("hacked data"),
+			SecureEntity: entities.SecureEntity{
+				ID:       binary.ID,
+				Metadata: "hacked",
+			},
+		}
+
+		req := createTestRequest("PUT", "/api/user/binaries", updateData, true, "updateuser2")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		// user2 не должен иметь доступа к записи user1
+		assert.Equal(t, http.StatusNotFound, w.Code)
+	})
+}
+
+// TestEdgeCases - тесты граничных случаев
+func TestEdgeCases(t *testing.T) {
+	router, _ := createTestHandlerAndRouter()
+
+	t.Run("Регистрация с максимально допустимыми данными", func(t *testing.T) {
+		// Создаем длинный логин и пароль
+		longLogin := strings.Repeat("a", 255)
+		longPassword := strings.Repeat("b", 71) //Максимальная длина bcrypt - 72 символа
+
+		newUser := dtos.NewUser{
+			Login:    longLogin,
+			Password: longPassword,
+		}
+
+		req := createTestRequest("POST", "/register", newUser, false, "")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		// Проверяем, что регистрация прошла успешно
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("Создание бинарных данных с минимальным размером", func(t *testing.T) {
+		registerTestUser(t, router, "edgeuser", "password123")
+
+		binaryData := dtos.NewBinaryData{
+			Data:            []byte("a"), // Минимальный размер
+			NewSecureEntity: dtos.NewSecureEntity{Metadata: "minimal"},
+		}
+
+		req := createTestRequest("POST", "/api/user/binaries", binaryData, true, "edgeuser")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+	})
+}
+
+// TestResponseHeaders - тесты заголовков ответов
+func TestResponseHeaders(t *testing.T) {
+	router, _ := createTestHandlerAndRouter()
+	testData := getTestData()
+
+	registerTestUser(t, router, "headeruser", "password123")
+
+	t.Run("Content-Type в ответе при создании", func(t *testing.T) {
+		req := createTestRequest("POST", "/api/user/binaries", testData.binary, true, "headeruser")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+		assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+	})
+
+	t.Run("Content-Type в ответе при получении", func(t *testing.T) {
+		binary := createBinary(t, router, "headeruser", testData.binary)
+
+		req := createTestRequest("GET", fmt.Sprintf("/api/user/binaries/%s", binary.ID),
+			nil, true, "headeruser")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.Equal(t, "application/json", w.Header().Get("Content-Type"))
+	})
+
+	t.Run("Статус 201 при создании", func(t *testing.T) {
+		req := createTestRequest("POST", "/api/user/texts", testData.text, true, "headeruser")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+	})
+
+	t.Run("Статус 410 при удалении", func(t *testing.T) {
+		text := createText(t, router, "headeruser", testData.text)
+
+		req := createTestRequest("DELETE", fmt.Sprintf("/api/user/texts/%s", text.ID),
+			nil, true, "headeruser")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusGone, w.Code)
+	})
+}
+
+// TestRequestBodyClosure - тесты закрытия тела запроса
+func TestRequestBodyClosure(t *testing.T) {
+	router, _ := createTestHandlerAndRouter()
+
+	t.Run("Деferred закрытие тела запроса", func(t *testing.T) {
+		// Создаем запрос с телом
+		newUser := dtos.NewUser{
+			Login:    "closeuser",
+			Password: "password123",
+		}
+
+		jsonBody, _ := json.Marshal(newUser)
+		req := httptest.NewRequest("POST", "/register", bytes.NewReader(jsonBody))
+		req.Header.Set("Content-Type", "application/json")
+
+		// Здесь можно было бы проверить, что r.Body.Close() вызывается,
+		// но в тестах это сложно сделать без моков
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+	})
+}
+
+// TestInvalidJSON - тесты невалидного JSON
+func TestInvalidJSON(t *testing.T) {
+	router, _ := createTestHandlerAndRouter()
+
+	registerTestUser(t, router, "jsonuser", "password123")
+
+	tests := []struct {
+		name     string
+		method   string
+		path     string
+		body     string
+		auth     bool
+		expected int
+	}{
+		{
+			name:     "Invalid JSON в Register",
+			method:   "POST",
+			path:     "/register",
+			body:     "{invalid json",
+			auth:     false,
+			expected: http.StatusBadRequest,
+		},
+		{
+			name:     "Invalid JSON в Login",
+			method:   "POST",
+			path:     "/login",
+			body:     "{login: test, password: test}",
+			auth:     false,
+			expected: http.StatusBadRequest,
+		},
+		{
+			name:     "Invalid JSON в CreateBinary",
+			method:   "POST",
+			path:     "/api/user/binaries",
+			body:     "{data: not base64}",
+			auth:     true,
+			expected: http.StatusBadRequest,
+		},
+		{
+			name:     "Malformed JSON в CreateCard",
+			method:   "POST",
+			path:     "/api/user/card",
+			body:     `{"number": "1234", "cardHolder": "John",`,
+			auth:     true,
+			expected: http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.path, bytes.NewReader([]byte(tt.body)))
+			req.Header.Set("Content-Type", "application/json")
+
+			if tt.auth {
+				ctx := customcontext.WithUserID(req.Context(), "jsonuser")
+				req = req.WithContext(ctx)
+			}
+
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.expected, w.Code)
+			assert.Contains(t, w.Body.String(), "Invalid request body")
+		})
+	}
 }

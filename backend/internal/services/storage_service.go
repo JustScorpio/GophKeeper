@@ -140,7 +140,7 @@ func (s *StorageService) processBinaryTask(task Task) (interface{}, error) {
 		return s.binariesRepo.Update(task.Context, entity)
 	case TaskDelete:
 		id := task.Payload.(string)
-		return nil, s.binariesRepo.Delete(task.Context, id)
+		return s.binariesRepo.Delete(task.Context, id)
 	default:
 		return nil, customerrors.UnsupportedOperation
 	}
@@ -161,7 +161,7 @@ func (s *StorageService) processCardTask(task Task) (interface{}, error) {
 		return s.cardsRepo.Update(task.Context, entity)
 	case TaskDelete:
 		id := task.Payload.(string)
-		return nil, s.cardsRepo.Delete(task.Context, id)
+		return s.cardsRepo.Delete(task.Context, id)
 	default:
 		return nil, customerrors.UnsupportedOperation
 	}
@@ -182,7 +182,7 @@ func (s *StorageService) processCredentialsTask(task Task) (interface{}, error) 
 		return s.credentialsRepo.Update(task.Context, entity)
 	case TaskDelete:
 		id := task.Payload.(string)
-		return nil, s.credentialsRepo.Delete(task.Context, id)
+		return s.credentialsRepo.Delete(task.Context, id)
 	default:
 		return nil, customerrors.UnsupportedOperation
 	}
@@ -203,7 +203,7 @@ func (s *StorageService) processTextTask(task Task) (interface{}, error) {
 		return s.textsRepo.Update(task.Context, entity)
 	case TaskDelete:
 		id := task.Payload.(string)
-		return nil, s.textsRepo.Delete(task.Context, id)
+		return s.textsRepo.Delete(task.Context, id)
 	default:
 		return nil, customerrors.UnsupportedOperation
 	}
@@ -224,7 +224,7 @@ func (s *StorageService) processUserTask(task Task) (interface{}, error) {
 		return s.updateUser(task.Context, entity)
 	case TaskDelete:
 		id := task.Payload.(string)
-		return nil, s.usersRepo.Delete(task.Context, id)
+		return s.usersRepo.Delete(task.Context, id)
 	default:
 		return nil, customerrors.UnsupportedOperation
 	}
@@ -302,15 +302,15 @@ func (s *StorageService) UpdateUser(ctx context.Context, user *entities.User) (*
 }
 
 // DeleteUser - удалить пользователя
-func (s *StorageService) DeleteUser(ctx context.Context, login string) error {
-	_, err := s.enqueueTask(Task{
+func (s *StorageService) DeleteUser(ctx context.Context, login string) (*entities.User, error) {
+	res, err := s.enqueueTask(Task{
 		TaskType:   TaskDelete,
 		EntityType: EntityUser,
 		Context:    ctx,
 		Payload:    login,
 	})
 
-	return err
+	return res.(*entities.User), err
 }
 
 // CreateBinary - создать бинарные данные
@@ -357,14 +357,14 @@ func (s *StorageService) UpdateBinary(ctx context.Context, binary *entities.Bina
 }
 
 // DeleteBinary - удалить бинарные данные
-func (s *StorageService) DeleteBinary(ctx context.Context, id string) error {
-	_, err := s.enqueueTask(Task{
+func (s *StorageService) DeleteBinary(ctx context.Context, id string) (*entities.BinaryData, error) {
+	res, err := s.enqueueTask(Task{
 		TaskType:   TaskDelete,
 		EntityType: EntityBinary,
 		Context:    ctx,
 		Payload:    id,
 	})
-	return err
+	return res.(*entities.BinaryData), err
 }
 
 // CreateCard - создать данные банковской карты
@@ -411,14 +411,14 @@ func (s *StorageService) UpdateCard(ctx context.Context, card *entities.CardInfo
 }
 
 // DeleteCard - удалить данные банковской карты
-func (s *StorageService) DeleteCard(ctx context.Context, id string) error {
-	_, err := s.enqueueTask(Task{
+func (s *StorageService) DeleteCard(ctx context.Context, id string) (*entities.CardInformation, error) {
+	res, err := s.enqueueTask(Task{
 		TaskType:   TaskDelete,
 		EntityType: EntityCard,
 		Context:    ctx,
 		Payload:    id,
 	})
-	return err
+	return res.(*entities.CardInformation), err
 }
 
 // CreateCredentials - создать учётные данные
@@ -465,14 +465,14 @@ func (s *StorageService) UpdateCredentials(ctx context.Context, creds *entities.
 }
 
 // DeleteCredentials - удалить учётные данные
-func (s *StorageService) DeleteCredentials(ctx context.Context, id string) error {
-	_, err := s.enqueueTask(Task{
+func (s *StorageService) DeleteCredentials(ctx context.Context, id string) (*entities.Credentials, error) {
+	res, err := s.enqueueTask(Task{
 		TaskType:   TaskDelete,
 		EntityType: EntityCredentials,
 		Context:    ctx,
 		Payload:    id,
 	})
-	return err
+	return res.(*entities.Credentials), err
 }
 
 // CreateText - создать текстовые данные
@@ -519,14 +519,14 @@ func (s *StorageService) UpdateText(ctx context.Context, text *entities.TextData
 }
 
 // DeleteText - удалить текстовые данные
-func (s *StorageService) DeleteText(ctx context.Context, id string) error {
-	_, err := s.enqueueTask(Task{
+func (s *StorageService) DeleteText(ctx context.Context, id string) (*entities.TextData, error) {
+	res, err := s.enqueueTask(Task{
 		TaskType:   TaskDelete,
 		EntityType: EntityText,
 		Context:    ctx,
 		Payload:    id,
 	})
-	return err
+	return res.(*entities.TextData), err
 }
 
 // createUser - создать пользователя (инкапсулирует все проверки и бизнес-логику)

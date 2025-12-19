@@ -16,5 +16,5 @@ type IRepository[Entity any, DTO any] interface {
 	// Update - изменить сущность
 	Update(ctx context.Context, entity *Entity) (*Entity, error)
 	// Delete - удалить сущность
-	Delete(ctx context.Context, id string) error
+	Delete(ctx context.Context, id string) (*Entity, error)
 }
