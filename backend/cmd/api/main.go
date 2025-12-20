@@ -45,19 +45,6 @@ func main() {
 
 // run - функция полезна при инициализации зависимостей сервера перед запуском
 func run() error {
-	//Проверяем указан ли конфигурационный файл.
-	if envConfigPath, hasEnv := os.LookupEnv("CONFIG_PATH"); hasEnv {
-		configPath = envConfigPath
-	}
-
-	//Заполняем параметры из конфига
-	if configPath != "" {
-		err := parseConfig(configPath)
-		if err != nil {
-			log.Fatal(err)
-		}
-	}
-
 	// Строка подключения к базе данных postgres
 	if envDBAddr, hasEnv := os.LookupEnv("DATABASE_URI"); hasEnv {
 		databaseConnStr = envDBAddr

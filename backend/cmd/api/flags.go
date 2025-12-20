@@ -15,9 +15,6 @@ var (
 	// enableHTTPS - включение HTTPS
 	enableHTTPS bool
 
-	// configPath - путь до конфигурационного файла
-	configPath string
-
 	// secretKey - секретный ключ используемый при выдаче токенов авторизации
 	secretKey string
 
@@ -33,7 +30,7 @@ func parseFlags() {
 	flag.StringVar(&routerAddr, "a", "localhost:8080", "address and port to run server")
 	flag.StringVar(&databaseConnStr, "d", "host=127.0.0.1 user=postgres password=1Qwerty dbname=gophkeeperdb port=5432 sslmode=disable", "postgresql connection string (only for postgresql)")
 	flag.BoolVar(&enableHTTPS, "s", true, "enable https")
-	flag.StringVar(&configPath, "c", "../configs/app_config.json", "path to application config file")
+	flag.StringVar(&secretKey, "k", "supersecretkey", "secret key for token creation")
 	flag.StringVar(&tlsCertPath, "cp", "../tls/localhost+2.pem", "path to tls certificate")
 	flag.StringVar(&tlsKeyPath, "kp", "../tls/localhost+2-key.pem", "path to tls certificate key")
 	flag.Parse()
